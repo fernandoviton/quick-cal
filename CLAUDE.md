@@ -1,89 +1,42 @@
 # Quick Cal
 
-A collaborative web app built on the listlet-shared starter kit.
+Shared availability calendar for friends, with no accounts and access by secret link. Built on the
+listlet-shared starter kit. See README.md for the privacy model.
 
 ## Architecture
 
 - **No build step.** Vanilla JS using IIFEs. Script tags in HTML, no bundler.
-- **Supabase** backend for auth (Google OAuth), database (PostgreSQL), and realtime sync.
-- **Mock mode** on localhost — skips auth, uses localStorage. No Supabase needed for local dev.
-- **GitHub Pages** for deployment.
+- **Supabase** backend, accessed **only through `quickcal_*` RPC functions** (security definer).
+  Tables have RLS with no policies and no grants to anon/authenticated. Never add table policies
+  or query tables directly from the client.
+- **Mock mode** on localhost: `createMockBackend` in `cal-api.js` implements the same RPC contract in localStorage.
+- **GitHub Pages** for deployment (`.github/workflows/deploy.yml`, which copies the files listed there).
 
-## File Structure
+## Files
 
-- `app.js` — **YOUR APP LOGIC.** Replace this with your own code. Must export `App` with `init(container, listName)`.
-- `app.css` — **YOUR APP STYLES.** Replace with your own styles.
-- `shared/` — Shared infrastructure. **Do not edit** — managed by listlet-shared.
-- `config.js` — Template config. Copy to `config.local.js` and fill in Supabase keys.
-- `sql/setup.sql` — Database setup. Run in Supabase SQL Editor.
+- `app.js`: UI and routing on the URL fragment (`#c=<token>`, plus `&me=` / `&admin=` links that are absorbed into localStorage and stripped).
+- `app.css`: app styles.
+- `cal-util.js`: pure helpers (secrets, hash links, dates, day stats). Also `require`-able from Jest.
+- `cal-api.js`: `CalApi.call(name, args)` maps to `supabase.rpc('quickcal_' + name, args)`, or to the mock.
+- `sql/setup.sql`: schema, RPCs, and grants. It's the source of truth for the API contract.
+- `shared/`: listlet-shared infrastructure. **Do not edit.** Only config-loader, supabase-client, utils, version, common.css and header.css are loaded; auth/home/api/sync are unused.
 
-## Shared Infrastructure (`shared/`)
+## Changing the API
 
-- `config-loader.js` — Loads config, sets `window.CONFIG`, auto-mocks on localhost
-- `supabase-client.js` — Creates `window.supabaseClient` from CONFIG
-- `api.js` — `createApi(listName)` — Supabase CRUD + mock mode
-- `auth.js` — Google OAuth login, session check, mock bypass
-- `home.js` — Home page: lists all lists, create new, open by name
-- `header.js` — Header bar: app title, home button, profile/logout
-- `sync.js` — Realtime subscriptions + polling fallback
-- `utils.js` — `escapeHtml`, `generateListId`, `getListName`, `hasExplicitListName`
-
-## Config Keys
-
-- `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` — Supabase project credentials (null = mock mode)
-- `APP_TITLE` — Displayed in header and login page
-- `DEFAULT_LIST_NAME` — Fallback when no `?list=` param
-
-## Database Schema
-
-Each item is its own row in `listlet_sample` (per-row model, not a single JSON blob per list):
-
-- `id` (uuid, PK) — auto-generated
-- `list_name` (text, indexed) — groups items into lists
-- `content` (text) — the item's content
-- `created_at` / `updated_at` (timestamptz) — auto-managed
-- `content_date` (date, generated) — read-only projection of `content`'s JSON `date` field (NULL when content isn't JSON or has no date); backs date-range fetches. Apps that name this column differently set `CONFIG.CONTENT_DATE_COLUMN`.
-
-## API Usage
-
-```js
-var api = createApi(listName);
-var items = await api.fetchItems();              // returns array of item objects
-var week = await api.fetchItems({dateFrom: '2026-07-01', dateTo: '2026-07-07'});  // bounded by content_date (inclusive)
-api.setDateRange('2026-07-01', '2026-07-07');    // default range for later arg-less fetchItems (e.g. Sync refresh); null clears
-var item = await api.createItem({content: ''});  // returns created item with id, timestamps
-var updated = await api.updateItem(id, {content: 'new'});  // returns updated item
-await api.deleteItem(id);
-var allLists = await createApi.getAllLists();     // returns [{list_name, count, updated_at}]
-```
-
-## CLI Tooling (`scripts/`)
-
-Node-only scaffolding for building CLI tools against the real Supabase table (never served to the browser):
-
-- `scripts/supabase-cli.js` — shared client + `login()`. Authenticates as a real user via a stored Google refresh token (same RLS path as the browser), **never** a `service_role` key. Rotated refresh tokens are written back to `.env` automatically.
-- `scripts/google-login.js` — one-time OAuth bootstrap: run it, sign in with Google at `http://localhost:3000`, and `SUPABASE_REFRESH_TOKEN` lands in `.env`. Requires the Google provider enabled and `http://localhost:3000/auth/callback` allowed in the Supabase dashboard.
-- `scripts/env-file.js` — pure `.env` line-upsert logic (unit tested).
-- Config comes from `.env` (copy `.env.example`): `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_REFRESH_TOKEN`, optional `DB_TABLE`.
-
-Build your app's CLI on top: `const { supabase, login, DB_TABLE } = require('./supabase-cli'); await login();` then query `DB_TABLE` normally.
-
-## Local Development
-
-```bash
-python -m http.server 8000
-```
-
-Mock mode activates automatically on localhost. No Supabase needed.
+Any change to an RPC must be made in **both** `sql/setup.sql` and `createMockBackend`, and covered in
+`tests/unit/contract.test.js`, which runs every case against both the mock and the real SQL (PGlite as `anon`).
+New public functions need an explicit `grant execute ... to anon, authenticated`. Internal helpers must be
+in the `revoke` list, because Supabase grants EXECUTE to anon by default.
 
 ## Testing
 
 ```bash
-npm test          # Jest unit tests
-npm run test:e2e  # Playwright E2E tests (starts local server)
-npm run test:all  # Both
+npm test          # Jest (needs --experimental-vm-modules for PGlite; the npm script sets it)
+npm run test:e2e  # Playwright, mock mode, serves via python3 -m http.server 8000
 ```
 
-## Deployment
+## Local Development
 
-Push to `main` triggers GitHub Pages deploy. Requires `config.js` with real Supabase keys at the deploy root.
+```bash
+python3 -m http.server 8000
+```

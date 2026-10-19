@@ -1,12 +1,13 @@
 {
-  "name": "listlet-shared",
+  "name": "quick-cal",
   "private": true,
   "scripts": {
-    "test": "jest",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:e2e": "npx playwright test",
-    "test:all": "jest && npx playwright test"
+    "test:all": "npm test && npx playwright test"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
     "@playwright/test": "^1.49.0",
     "@supabase/supabase-js": "^2.110.2",
     "dotenv": "^17.4.2",

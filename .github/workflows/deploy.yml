@@ -55,7 +55,7 @@ jobs:
         run: |
           mkdir _site
           cp -r shared _site/
-          cp index.html app.js app.css config.js _site/
+          cp index.html app.js app.css cal-util.js cal-api.js config.js _site/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5

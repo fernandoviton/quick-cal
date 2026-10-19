@@ -1,7 +1,7 @@
 module.exports = {
     testDir: './tests/e2e',
     webServer: {
-        command: 'python -m http.server 8000 -d .',
+        command: 'python3 -m http.server 8000 -d .',
         port: 8000,
         reuseExistingServer: true,
         cwd: '.'
