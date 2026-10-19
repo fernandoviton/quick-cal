@@ -1,0 +1,15 @@
+{
+  "name": "listlet-shared",
+  "private": true,
+  "scripts": {
+    "test": "jest",
+    "test:e2e": "npx playwright test",
+    "test:all": "jest && npx playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@supabase/supabase-js": "^2.110.2",
+    "dotenv": "^17.4.2",
+    "jest": "^29.7.0"
+  }
+}

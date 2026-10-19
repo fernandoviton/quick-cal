@@ -1,0 +1,66 @@
+/* Home page styles */
+
+.home-page {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.home-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.home-open {
+    display: flex;
+    gap: 8px;
+}
+
+.home-open .input {
+    flex: 1;
+}
+
+.home-lists {
+    margin-top: 16px;
+}
+
+.home-empty {
+    text-align: center;
+    color: #999;
+    padding: 40px;
+}
+
+.home-list-items {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.home-list-item {
+    border-bottom: 1px solid #eee;
+}
+
+.home-list-item a {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 8px;
+    text-decoration: none;
+    color: #333;
+    transition: background 0.15s;
+}
+
+.home-list-item a:hover {
+    background: #f0f7ff;
+}
+
+.home-list-name {
+    font-weight: 500;
+}
+
+.home-list-date {
+    font-size: 0.85rem;
+    color: #999;
+}

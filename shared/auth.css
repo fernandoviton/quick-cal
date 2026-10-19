@@ -1,0 +1,61 @@
+/* Login page styles */
+
+#login-page {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    justify-content: center;
+    align-items: center;
+    background: #f5f5f5;
+    z-index: 9999;
+}
+
+.login-card {
+    background: white;
+    padding: 48px;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+}
+
+.login-card h1 {
+    margin: 0 0 8px 0;
+    font-size: 2rem;
+    color: #333;
+}
+
+.login-card p {
+    margin: 0 0 32px 0;
+    color: #666;
+    font-size: 1rem;
+}
+
+.login-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 32px;
+    font-size: 1rem;
+    font-weight: 500;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    background: white;
+    color: #333;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.login-btn:hover {
+    border-color: #2196f3;
+    box-shadow: 0 2px 8px rgba(33,150,243,0.15);
+}
+
+.login-btn svg {
+    width: 20px;
+    height: 20px;
+}

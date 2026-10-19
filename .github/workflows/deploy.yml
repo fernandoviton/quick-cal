@@ -1,0 +1,67 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Inject Supabase config into config.js
+        run: |
+          sed -i "s|SUPABASE_URL: ''|SUPABASE_URL: '${{ vars.SUPABASE_URL }}'|; s|SUPABASE_PUBLISHABLE_KEY: ''|SUPABASE_PUBLISHABLE_KEY: '${{ vars.SUPABASE_PUBLISHABLE_KEY }}'|" config.js
+
+      - name: Verify config.js was populated
+        run: |
+          if grep -qE "SUPABASE_URL: ''|SUPABASE_PUBLISHABLE_KEY: ''" config.js; then
+            echo "::error::config.js still has empty Supabase values after injection — the site would ship in mock mode. Likely cause: the SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY Actions variables are empty or unset on THIS repo's github-pages environment (Settings → Secrets and variables → Actions → Variables, or Settings → Environments → github-pages), OR the sed pattern above no longer matches config.js."
+            cat config.js
+            exit 1
+          fi
+
+      - name: Generate version.js
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+          SHA=$(git rev-parse --short HEAD)
+          MSG=$(git log -1 --pretty=%s)
+          echo "var APP_VERSION = '${TIMESTAMP} ${SHA} ${MSG}';" > shared/version.js
+
+      - name: Stage deploy files
+        run: |
+          mkdir _site
+          cp -r shared _site/
+          cp index.html app.js app.css config.js _site/
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

@@ -1,0 +1,70 @@
+/* Header bar styles */
+
+#header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: white;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+.header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-home-btn {
+    font-size: 1.5rem;
+    text-decoration: none;
+    color: #333;
+    line-height: 1;
+}
+
+.header-home-btn:hover {
+    color: #2196f3;
+}
+
+.header-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-email {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.header-logout-btn {
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: white;
+    color: #666;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.header-logout-btn:hover {
+    border-color: #999;
+    color: #333;
+}
