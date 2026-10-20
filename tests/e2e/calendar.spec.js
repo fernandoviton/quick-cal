@@ -108,6 +108,16 @@ test.describe('Quick Cal', () => {
         await expect(page.locator('#findLen')).toHaveValue('4');
         await expect(range(w.thu, w.tue).locator('..')).toContainText('6 days free');
 
+        // Five results by default; the rest (every weekend for 6 months) behind "Show more".
+        await expect(page.locator('#qcBest li')).toHaveCount(5);
+        const more = page.locator('[data-action=toggle-find]');
+        await expect(more).toHaveText(/^Show \d+ more/);
+        await more.click();
+        expect(await page.locator('#qcBest li').count()).toBeGreaterThan(20);
+        await expect(more).toHaveText(/Show fewer/);
+        await more.click();
+        await expect(page.locator('#qcBest li')).toHaveCount(5);
+
         // Busy Thursday and Tuesday leave exactly Fri–Mon.
         await day(page, w.thu).click();
         await day(page, w.tue).click();

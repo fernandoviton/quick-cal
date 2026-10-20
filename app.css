@@ -553,6 +553,22 @@ body {
     font-weight: 700;
 }
 
+.qc-more-btn {
+    margin-top: 10px;
+    padding: 6px 0;
+    border: none;
+    background: none;
+    color: #1976d2;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.qc-more-btn:hover {
+    text-decoration: underline;
+}
+
 .qc-note {
     margin: 12px 0 0;
     padding: 8px 10px;

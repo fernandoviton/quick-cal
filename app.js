@@ -7,7 +7,7 @@ var App = (function() {
     var POLL_MS = 15000;
     var MAX_MONTHS_BACK = 1; // how far before the current month you can page
     var FIND_HORIZON_DAYS = 180;
-    var FIND_LIMIT = 8;
+    var FIND_COLLAPSED = 5; // results shown before "Show more"
     var FIND_DEFAULTS = { weekdays: [6, 0], length: 4 };
     var WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -305,7 +305,7 @@ var App = (function() {
             token: token, data: null, version: null, stats: {}, me: null, isAdmin: false,
             month: { y: now.getFullYear(), m: now.getMonth() },
             selected: todayIso(), paint: 'busy', drag: null, highlight: null,
-            find: loadFind(token),
+            find: loadFind(token), findExpanded: false,
             pending: 0, queue: Promise.resolve()
         };
         var s = state;
@@ -662,7 +662,8 @@ var App = (function() {
                 : 'No ' + state.find.length + '-day stretches where everyone\'s free in the next 6 months.') + '</p>';
         } else {
             html += '<ol class="qc-best">';
-            results.slice(0, FIND_LIMIT).forEach(function(r) {
+            var shown = state.findExpanded ? results : results.slice(0, FIND_COLLAPSED);
+            shown.forEach(function(r) {
                 var on = state.highlight && state.highlight.start === r.start && state.highlight.end === r.end;
                 html += '<li><button class="qc-link-btn' + (on ? ' active' : '') + '" data-goto-range="' + r.start + '|' + r.end + '">' +
                         escapeHtml(formatRange(r.start, r.end)) + '</button>' +
@@ -670,8 +671,9 @@ var App = (function() {
                         (r.days > state.find.length ? ' free' : '') + '</span></li>';
             });
             html += '</ol>';
-            if (results.length > FIND_LIMIT) {
-                html += '<p class="qc-muted">' + (results.length - FIND_LIMIT) + ' more in the next 6 months.</p>';
+            if (results.length > FIND_COLLAPSED) {
+                html += '<button class="qc-more-btn" data-action="toggle-find" aria-expanded="' + state.findExpanded + '">' +
+                    (state.findExpanded ? 'Show fewer &#9652;' : 'Show ' + (results.length - FIND_COLLAPSED) + ' more &#9662;') + '</button>';
             }
         }
         // Unmarked days count as free, so flag people who haven't marked anything.
@@ -894,6 +896,9 @@ var App = (function() {
                 return;
             case 'today':
                 return gotoDay(todayIso());
+            case 'toggle-find':
+                state.findExpanded = !state.findExpanded;
+                return renderBest();
             case 'copy-invite':
                 return copyText(linkTo(CalUtil.buildHash(state.token)), 'Invite link copied. Send it to your friends.');
             case 'copy-personal':
