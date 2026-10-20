@@ -59,7 +59,7 @@ describe('stats', () => {
     // Two people, a and b. Unmarked days are free.
     const availability = [
         { member_id: 'a', day: '2026-10-20', status: 'busy' },
-        { member_id: 'b', day: '2026-10-20', status: 'maybe' },
+        { member_id: 'b', day: '2026-10-20', status: 'maybe' }, // ignored
         { member_id: 'a', day: '2026-10-21', status: 'busy' },
         { member_id: 'b', day: '2026-10-21', status: 'busy' },
         { member_id: 'a', day: '2026-10-22', status: 'maybe' },
@@ -67,8 +67,10 @@ describe('stats', () => {
     ];
     const stats = CalUtil.dayStats(availability);
 
-    test('dayStats groups by day and status', () => {
-        expect(stats['2026-10-20']).toEqual({ busy: ['a'], maybe: ['b'] });
+    test('dayStats lists who is busy each day and ignores leftover maybes', () => {
+        expect(stats['2026-10-20']).toEqual({ busy: ['a'] });
+        expect(stats['2026-10-21']).toEqual({ busy: ['a', 'b'] });
+        expect(stats['2026-10-22']).toBeUndefined(); // only a maybe
         expect(stats['2026-10-19']).toBeUndefined();
     });
 });
@@ -84,7 +86,7 @@ test('minSpan is the shortest run that covers the weekdays', () => {
 describe('findDates', () => {
     const marks = CalUtil.dayStats([
         { member_id: 'b', day: '2026-10-27', status: 'busy' },  // Tue
-        { member_id: 'a', day: '2026-10-29', status: 'maybe' }, // Thu
+        { member_id: 'a', day: '2026-10-29', status: 'busy' },  // Thu
         { member_id: 'b', day: '2026-11-07', status: 'busy' }   // Sat
     ]);
     // Stretches may start up to Nov 4 (14 days).
@@ -93,7 +95,7 @@ describe('findDates', () => {
 
     test('merges the stretches around each weekend into one result', () => {
         // Oct 24/25: Thu–Sun and Fri–Mon (Tue is busy). Oct 31/Nov 1: Fri–Mon
-        // and Sat–Tue (Thu is a maybe).
+        // and Sat–Tue (Thu is busy).
         expect(find([6, 0], 4)).toEqual(['2026-10-22..2026-10-26', '2026-10-30..2026-11-03']);
         expect(CalUtil.findDates(marks, 2, '2026-10-22', 14, { weekdays: [6, 0], length: 4 })[0].days).toBe(5);
     });

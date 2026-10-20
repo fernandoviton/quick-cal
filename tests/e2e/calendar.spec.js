@@ -66,20 +66,33 @@ test.describe('Quick Cal', () => {
         await expect(day(page, d1)).not.toHaveClass(/mine-busy/);
         await expect(day(page, d1).locator('.qc-count')).toHaveCount(0);
 
-        // Drag across three days in "maybe" mode.
-        await page.click('[data-paint=maybe]');
+        // Drag across three days.
         const a = await day(page, d1).boundingBox();
         const c = await day(page, d3).boundingBox();
         await page.mouse.move(a.x + 10, a.y + 10);
         await page.mouse.down();
         await page.mouse.move(c.x + 10, c.y + 10, { steps: 5 });
         await page.mouse.up();
-        for (const d of [d1, d2, d3]) await expect(day(page, d)).toHaveClass(/mine-maybe/);
+        for (const d of [d1, d2, d3]) await expect(day(page, d)).toHaveClass(/mine-busy/);
+        // Only Busy and Free are offered.
+        await expect(page.locator('#qcToolbar [data-paint]')).toHaveCount(2);
 
         // Persists across reload.
         await page.reload();
         await page.click('[data-action=next]');
-        await expect(day(page, d2)).toHaveClass(/mine-maybe/);
+        await expect(day(page, d2)).toHaveClass(/mine-busy/);
+
+        // The API still accepts "maybe", but the app ignores those rows: the day counts as free.
+        await page.evaluate(async d => {
+            const token = location.hash.slice(3);
+            const me = JSON.parse(localStorage.getItem('quickcal_identities'))[token];
+            await CalApi.call('set_days', { p_token: token, p_member_id: me.memberId, p_member_key: me.memberKey, p_days: [d], p_status: 'maybe' });
+        }, d1);
+        await page.reload();
+        await page.click('[data-action=next]');
+        await expect(day(page, d2)).toHaveClass(/mine-busy/);
+        await expect(day(page, d1)).not.toHaveClass(/mine-/);
+        await expect(day(page, d1).locator('.qc-count')).toHaveCount(0);
     });
 
     test('dates that work: required weekdays and days in a row', async ({ page }) => {
@@ -109,9 +122,8 @@ test.describe('Quick Cal', () => {
         await page.selectOption('#findLen', '3');
         await expect(page.locator('#qcBest')).toContainText('can\'t include all the checked days');
 
-        // A maybe on Monday blocks the weekend too.
+        // A busy Monday blocks the weekend too.
         await page.selectOption('#findLen', '4');
-        await page.click('[data-paint=maybe]');
         await day(page, w.mon).click();
         await expect(page.locator(`#qcBest [data-goto-range*="${w.fri}"]`)).toHaveCount(0);
 

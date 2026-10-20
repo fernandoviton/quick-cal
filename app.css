@@ -3,7 +3,6 @@
 :root {
     --qc-green: #2e7d32;
     --qc-green-dark: #1b5e20;
-    --qc-amber: #f9a825;
     --qc-red: #c62828;
     --qc-text: #222;
     --qc-muted: #666;
@@ -284,11 +283,6 @@ body {
     color: white;
 }
 
-.qc-paint-btn.active.maybe {
-    background: var(--qc-amber);
-    color: #222;
-}
-
 .qc-paint-btn.active.clear {
     background: var(--qc-green);
     color: white;
@@ -365,19 +359,10 @@ body {
     box-shadow: inset 0 0 0 3px var(--qc-red);
 }
 
-.qc-day.mine-maybe {
-    box-shadow: inset 0 0 0 3px var(--qc-amber);
-}
-
 .qc-day.preview-busy {
     box-shadow: inset 0 0 0 4px var(--qc-red);
     background-image: linear-gradient(rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.55)), linear-gradient(rgba(198, 40, 40, 0.35), rgba(198, 40, 40, 0.35));
     color: var(--qc-text);
-}
-
-.qc-day.preview-maybe {
-    box-shadow: inset 0 0 0 4px var(--qc-amber);
-    background-image: linear-gradient(rgba(249, 168, 37, 0.35), rgba(249, 168, 37, 0.35));
 }
 
 .qc-day.preview-clear {
@@ -396,10 +381,6 @@ body {
     font-weight: 600;
 }
 
-.qc-count small {
-    font-weight: 500;
-}
-
 @media (max-width: 480px) {
     .qc-page {
         padding: 10px;
@@ -413,9 +394,6 @@ body {
     .qc-day {
         padding: 2px 3px;
         border-radius: 6px;
-    }
-    .qc-count small {
-        display: none;
     }
 }
 
@@ -446,10 +424,6 @@ body {
     box-shadow: inset 0 0 0 2px var(--qc-red);
 }
 
-.qc-swatch-maybe {
-    box-shadow: inset 0 0 0 2px var(--qc-amber);
-}
-
 /* Side panels */
 
 .qc-side h3 {
@@ -460,7 +434,6 @@ body {
 }
 
 .qc-side h3.free { color: var(--qc-green); }
-.qc-side h3.maybe { color: #b26a00; }
 .qc-side h3.busy { color: var(--qc-red); }
 
 .qc-names {

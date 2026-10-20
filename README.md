@@ -1,11 +1,11 @@
 # Quick Cal
 
 A shared availability calendar for friends. Someone creates a calendar, sends the
-link around, and everyone taps or drags across the days they **can't** make (busy,
-or "maybe"). Every unmarked day counts as free. The calendar shades days by how many
+link around, and everyone taps or drags across the days they **can't** make. Every
+unmarked day counts as free. The calendar shades days by how many
 people are free.
 
-**Dates that work** lists the stretches when *everyone* is free (no busy or maybe marks) over the next 6 months.
+**Dates that work** lists the stretches when *everyone* is free over the next 6 months.
 You choose the weekdays a stretch must include (Sat and Sun by default) and how many days in a row it needs (4 by
 default). Stretches around the same weekend are merged into one result. For example, Thu–Sun, Fri–Mon and Sat–Tue
 all being free shows as "Thu – Tue · 6 days free".

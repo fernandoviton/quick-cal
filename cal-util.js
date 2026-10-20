@@ -93,14 +93,21 @@ var CalUtil = (function() {
         return weeks;
     }
 
-    // Only blocked days are stored, so this lists who's busy or maybe on each
-    // marked day. Anyone not listed is free. { iso: { busy: [memberId], maybe: [memberId] } }
+    // Only blocked days are stored, so this lists who's busy on each marked
+    // day. Anyone not listed is free. { iso: { busy: [memberId] } }
+    // The backend still accepts 'maybe' rows, but the app no longer offers
+    // them, so any left over are ignored (the day counts as free).
+    function isBusy(a) {
+        return a.status === 'busy';
+    }
+
     function dayStats(availability) {
         var stats = {};
         for (var i = 0; i < availability.length; i++) {
             var a = availability[i];
-            if (!stats[a.day]) stats[a.day] = { busy: [], maybe: [] };
-            stats[a.day][a.status].push(a.member_id);
+            if (!isBusy(a)) continue;
+            if (!stats[a.day]) stats[a.day] = { busy: [] };
+            stats[a.day].busy.push(a.member_id);
         }
         return stats;
     }
@@ -119,7 +126,7 @@ var CalUtil = (function() {
     }
 
     // Stretches of `opts.length` consecutive days, within the `horizon` days
-    // from fromIso, when all `n` people are free (no busy or maybe marks) and
+    // from fromIso, when all `n` people are free (nobody busy) and
     // that include every weekday in `opts.weekdays`.
     // Overlapping stretches around the same occurrence of the required days
     // (e.g. Thu–Sun, Fri–Mon and Sat–Tue for one weekend) are merged into a
@@ -133,7 +140,7 @@ var CalUtil = (function() {
         var lastStart = addDays(fromIso, horizon - 1);
         function free(day) {
             var s = stats[day];
-            return !s || (!s.busy.length && !s.maybe.length);
+            return !s || !s.busy.length;
         }
 
         var groups = [];
@@ -175,6 +182,7 @@ var CalUtil = (function() {
         addDays: addDays,
         daysBetween: daysBetween,
         monthGrid: monthGrid,
+        isBusy: isBusy,
         dayStats: dayStats,
         minSpan: minSpan,
         findDates: findDates

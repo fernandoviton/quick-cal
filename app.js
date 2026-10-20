@@ -5,7 +5,6 @@
 var App = (function() {
     var STORE_KEY = 'quickcal_identities';
     var POLL_MS = 15000;
-    var STATUS_LABEL = { busy: 'Busy', maybe: 'Maybe' };
     var FIND_HORIZON_DAYS = 180;
     var FIND_LIMIT = 8;
     var FIND_DEFAULTS = { weekdays: [6, 0], length: 4 };
@@ -423,7 +422,6 @@ var App = (function() {
                             '<span><i class="qc-swatch" style="background:#a5d6a7"></i>Some free</span>' +
                             '<span><i class="qc-swatch" style="background:#fff"></i>Nobody free</span>' +
                             '<span><i class="qc-swatch qc-swatch-busy"></i>You\'re busy</span>' +
-                            '<span><i class="qc-swatch qc-swatch-maybe"></i>You: maybe</span>' +
                         '</div>' +
                     '</div>' +
                     '<aside class="qc-side">' +
@@ -495,7 +493,7 @@ var App = (function() {
             '</div>';
         if (state.me) {
             html += '<div class="qc-paint" role="radiogroup" aria-label="Mark days as">';
-            [['busy', 'Busy'], ['maybe', 'Maybe'], ['clear', 'Free']].forEach(function(p) {
+            [['busy', 'Busy'], ['clear', 'Free']].forEach(function(p) {
                 var active = state.paint === p[0];
                 html += '<button class="qc-paint-btn ' + p[0] + (active ? ' active' : '') + '" role="radio" aria-checked="' + active + '" data-paint="' + p[0] + '">' + p[1] + '</button>';
             });
@@ -512,11 +510,10 @@ var App = (function() {
         var s = state.stats[day];
         if (!s) return null;
         if (s.busy.indexOf(state.me.id) >= 0) return 'busy';
-        if (s.maybe.indexOf(state.me.id) >= 0) return 'maybe';
         return null;
     }
 
-    // White → green by share of people free (maybe counts half). Squared so
+    // White → green by share of people free. Squared so
     // "everyone free" stands out clearly from "almost everyone".
     function heatColor(score) {
         var from = [255, 255, 255];
@@ -536,10 +533,9 @@ var App = (function() {
         });
         weeks.forEach(function(week) {
             week.forEach(function(cell) {
-                var s = state.stats[cell.iso] || { busy: [], maybe: [] };
-                var maybe = s.maybe.length;
-                var free = n - s.busy.length - maybe;
-                var score = n ? (free + maybe / 2) / n : 0;
+                var s = state.stats[cell.iso] || { busy: [] };
+                var free = n - s.busy.length;
+                var score = n ? free / n : 0;
                 var mine = myStatus(cell.iso);
                 var classes = ['qc-day'];
                 if (!cell.inMonth) classes.push('out');
@@ -550,11 +546,11 @@ var App = (function() {
                 if (mine) classes.push('mine-' + mine);
                 if (score * score > 0.55) classes.push('dark');
                 var aria = formatDay(cell.iso, true) + ': ' + free + ' of ' + n + ' free' +
-                    (maybe ? ', ' + maybe + ' maybe' : '') + (mine ? ', you: ' + STATUS_LABEL[mine].toLowerCase() : '');
+                    (mine ? ', you: busy' : '');
                 html += '<button class="' + classes.join(' ') + '" data-day="' + cell.iso + '" role="gridcell" ' +
                     'style="background:' + heatColor(score) + '" aria-label="' + escapeHtml(aria) + '">' +
                     '<span class="qc-num">' + CalUtil.parseIso(cell.iso).getDate() + '</span>' +
-                    (free < n ? '<span class="qc-count" aria-hidden="true">' + free + '/' + n + (maybe ? ' <small>+' + maybe + '?</small>' : '') + '</span>' : '') +
+                    (free < n ? '<span class="qc-count" aria-hidden="true">' + free + '/' + n + '</span>' : '') +
                 '</button>';
             });
         });
@@ -580,22 +576,20 @@ var App = (function() {
             el.innerHTML = '<p class="qc-muted">Tap a day to see who\'s free.</p>';
             return;
         }
-        var s = state.stats[day] || { busy: [], maybe: [] };
-        var marked = s.busy.concat(s.maybe);
-        var free = state.data.members.filter(function(m) { return marked.indexOf(m.id) < 0; })
+        var s = state.stats[day] || { busy: [] };
+        var free = state.data.members.filter(function(m) { return s.busy.indexOf(m.id) < 0; })
             .map(function(m) { return m.name; });
         var html = '<h2>' + escapeHtml(formatDay(day, true)) + '</h2>';
         if (state.me && day >= todayIso()) {
             var mine = myStatus(day);
             html += '<div class="qc-mine" role="group" aria-label="Your answer for this day">';
-            [['busy', 'Busy'], ['maybe', 'Maybe'], ['clear', 'Free']].forEach(function(p) {
+            [['busy', 'Busy'], ['clear', 'Free']].forEach(function(p) {
                 var on = (mine || 'clear') === p[0];
                 html += '<button class="qc-paint-btn ' + p[0] + (on ? ' active' : '') + '" aria-pressed="' + on + '" data-set-day="' + p[0] + '">' + p[1] + '</button>';
             });
             html += '</div>';
         }
         html += nameList('Free', free, 'free') +
-            nameList('Maybe', namesFor(s.maybe), 'maybe') +
             nameList('Busy', namesFor(s.busy), 'busy');
         if (!state.data.members.length) html += '<p class="qc-muted">Nobody has joined yet.</p>';
         el.innerHTML = html;
@@ -667,7 +661,7 @@ var App = (function() {
         }
         // Unmarked days count as free, so flag people who haven't marked anything.
         var marked = {};
-        state.data.availability.forEach(function(a) { marked[a.member_id] = true; });
+        state.data.availability.filter(CalUtil.isBusy).forEach(function(a) { marked[a.member_id] = true; });
         var blank = members.filter(function(m) { return !marked[m.id]; }).map(function(m) { return m.name; });
         if (blank.length && members.length > 1) {
             html += '<p class="qc-note">' + escapeHtml(blank.join(', ')) + (blank.length === 1 ? ' hasn\'t' : ' haven\'t') +
@@ -679,7 +673,7 @@ var App = (function() {
     function renderMembers() {
         var counts = {};
         var today = todayIso();
-        state.data.availability.forEach(function(a) {
+        state.data.availability.filter(CalUtil.isBusy).forEach(function(a) {
             if (a.day >= today) counts[a.member_id] = (counts[a.member_id] || 0) + 1;
         });
         var html = '<h2>People (' + state.data.members.length + ')</h2><ul class="qc-members">';
@@ -780,7 +774,7 @@ var App = (function() {
         var cells = container.querySelectorAll('.qc-day');
         for (var i = 0; i < cells.length; i++) {
             var c = cells[i];
-            c.classList.remove('preview-busy', 'preview-maybe', 'preview-clear');
+            c.classList.remove('preview-busy', 'preview-clear');
             if (range.indexOf(c.dataset.day) >= 0 && canPaint(c.dataset.day)) c.classList.add(cls);
         }
     }

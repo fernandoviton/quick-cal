@@ -21,8 +21,9 @@ listlet-shared starter kit. See README.md for the privacy model.
 - `sql/setup.sql`: schema, RPCs, and grants. It's the source of truth for the API contract.
 - `sql/migrations/`: upgrades for the live database (re-running setup.sql wipes data). Add one for every schema or RPC change, and a contract test that applies it.
 
-Only **blocked** days are stored (`status` is `busy` or `maybe`). A day with no row means the person is free, so
-"free" counts are always derived from the member count.
+Only **blocked** days are stored. A day with no row means the person is free, so "free" counts are always derived
+from the member count. The UI only offers `busy`. The SQL and mock still accept `maybe`, but the client ignores those
+rows (`CalUtil.isBusy`), so a leftover maybe counts as free.
 - `shared/`: listlet-shared infrastructure. **Do not edit.** Only config-loader, supabase-client, utils, version, common.css and header.css are loaded; auth/home/api/sync are unused.
 
 ## Changing the API
