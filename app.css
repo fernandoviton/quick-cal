@@ -569,6 +569,11 @@ body {
     text-decoration: underline;
 }
 
+.qc-horizon {
+    margin: 10px 0 0;
+    font-size: 0.8rem;
+}
+
 .qc-note {
     margin: 12px 0 0;
     padding: 8px 10px;

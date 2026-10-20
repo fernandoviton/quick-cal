@@ -6,7 +6,7 @@ var App = (function() {
     var STORE_KEY = 'quickcal_identities';
     var POLL_MS = 15000;
     var MAX_MONTHS_BACK = 1; // how far before the current month you can page
-    var FIND_HORIZON_DAYS = 180;
+    var FIND_HORIZON_DAYS = 365;
     var FIND_COLLAPSED = 5; // results shown before "Show more"
     var FIND_DEFAULTS = { weekdays: [6, 0], length: 4 };
     var WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -659,7 +659,7 @@ var App = (function() {
         } else if (!results.length) {
             html += '<p class="qc-muted">' + (CalUtil.minSpan(state.find.weekdays) > state.find.length
                 ? state.find.length + (state.find.length === 1 ? ' day' : ' days in a row') + ' can\'t include all the checked days.'
-                : 'No ' + state.find.length + '-day stretches where everyone\'s free in the next 6 months.') + '</p>';
+                : 'No ' + state.find.length + '-day stretches where everyone\'s free in the next year.') + '</p>';
         } else {
             html += '<ol class="qc-best">';
             var shown = state.findExpanded ? results : results.slice(0, FIND_COLLAPSED);
@@ -675,6 +675,11 @@ var App = (function() {
                 html += '<button class="qc-more-btn" data-action="toggle-find" aria-expanded="' + state.findExpanded + '">' +
                     (state.findExpanded ? 'Show fewer &#9652;' : 'Show ' + (results.length - FIND_COLLAPSED) + ' more &#9662;') + '</button>';
             }
+        }
+        if (members.length) {
+            var last = CalUtil.parseIso(CalUtil.addDays(todayIso(), FIND_HORIZON_DAYS - 1));
+            html += '<p class="qc-muted qc-horizon">Searching through ' +
+                escapeHtml(last.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })) + '.</p>';
         }
         // Unmarked days count as free, so flag people who haven't marked anything.
         var marked = {};
