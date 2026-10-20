@@ -36,7 +36,7 @@ test.describe('Quick Cal', () => {
     });
     test.afterEach(() => expect(errors).toEqual([]));
 
-    test('create a calendar and paint days', async ({ page }) => {
+    test('create a calendar and block out days', async ({ page }) => {
         await createCalendar(page);
         expect(page.url()).toMatch(/#c=[A-Za-z0-9_-]{22}$/);
         await expect(page.locator('.qc-identity')).toContainText('Sam');
@@ -45,12 +45,15 @@ test.describe('Quick Cal', () => {
         const [d1, d2, d3] = nextMonthDays();
         await page.click('[data-action=next]');
 
-        // Tap marks, tap again clears.
+        // Unmarked days count as free, so there's no count on them.
+        await expect(day(page, d1).locator('.qc-count')).toHaveCount(0);
+        // Tap marks busy, tap again clears.
         await day(page, d1).click();
-        await expect(day(page, d1)).toHaveClass(/mine-yes/);
-        await expect(day(page, d1).locator('.qc-count')).toHaveText('1/1');
+        await expect(day(page, d1)).toHaveClass(/mine-busy/);
+        await expect(day(page, d1).locator('.qc-count')).toHaveText('0/1');
         await day(page, d1).click();
-        await expect(day(page, d1)).not.toHaveClass(/mine-yes/);
+        await expect(day(page, d1)).not.toHaveClass(/mine-busy/);
+        await expect(day(page, d1).locator('.qc-count')).toHaveCount(0);
 
         // Drag across three days in "maybe" mode.
         await page.click('[data-paint=maybe]');
@@ -66,7 +69,9 @@ test.describe('Quick Cal', () => {
         await page.reload();
         await page.click('[data-action=next]');
         await expect(day(page, d2)).toHaveClass(/mine-maybe/);
+        // Free before and after the maybe stretch, then the stretch itself.
         await expect(page.locator('#qcBest li')).toHaveCount(3);
+        await expect(page.locator('#qcBest li').nth(2)).toContainText('1 maybe');
     });
 
     test('keyboard can mark a day', async ({ page }) => {
@@ -75,7 +80,7 @@ test.describe('Quick Cal', () => {
         await page.click('[data-action=next]');
         await day(page, d1).focus();
         await page.keyboard.press('Enter');
-        await expect(day(page, d1)).toHaveClass(/mine-yes/);
+        await expect(day(page, d1)).toHaveClass(/mine-busy/);
     });
 
     test('a friend joins from the invite link and both show up', async ({ page }) => {
@@ -83,7 +88,7 @@ test.describe('Quick Cal', () => {
         const [d1] = nextMonthDays();
         await page.click('[data-action=next]');
         await day(page, d1).click();
-        await expect(day(page, d1)).toHaveClass(/mine-yes/);
+        await expect(day(page, d1)).toHaveClass(/mine-busy/);
 
         await page.click('[data-action=copy-invite]');
         const invite = await page.evaluate(() => navigator.clipboard.readText());
@@ -96,6 +101,7 @@ test.describe('Quick Cal', () => {
         await page.click('[data-action=next]');
         await day(page, d1).click();
         await expect(day(page, d1)).not.toHaveClass(/mine-/);
+        await expect(page.locator('#qcDetail h3.busy')).toHaveText('Busy (1)');
         await expect(page.locator('#qcDetail')).toContainText('Sam');
 
         await page.fill('#joinName', 'Alex');
@@ -103,10 +109,19 @@ test.describe('Quick Cal', () => {
         await expect(page.locator('.qc-identity')).toContainText('Alex');
         await expect(page.locator('#qcAdmin')).toBeEmpty();
 
+        await expect(page.locator('.qc-members')).toContainText('nothing blocked yet');
+        // Alex hasn't blocked anything, so they count as free on Sam's busy day.
+        await expect(day(page, d1).locator('.qc-count')).toHaveText('1/2');
         await day(page, d1).click();
-        await expect(day(page, d1).locator('.qc-count')).toHaveText('2/2');
-        await expect(day(page, d1).locator('.qc-star')).toHaveCount(1);
-        await expect(page.locator('#qcDetail h3.yes')).toHaveText('Available (2)');
+        await expect(day(page, d1)).toHaveClass(/mine-busy/);
+        await expect(day(page, d1).locator('.qc-count')).toHaveText('0/2');
+        await expect(page.locator('#qcDetail h3.busy')).toHaveText('Busy (2)');
+        await expect(page.locator('.qc-members')).not.toContainText('nothing blocked yet');
+
+        const [, d2] = nextMonthDays();
+        await page.click('[data-paint=clear]');
+        await day(page, d2).click();
+        await expect(page.locator('#qcDetail h3.free')).toHaveText('Free (2)');
     });
 
     test('personal link restores identity on another device and is stripped from the URL', async ({ page }) => {

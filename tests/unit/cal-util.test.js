@@ -56,22 +56,37 @@ describe('dates', () => {
 });
 
 describe('stats', () => {
+    // Two people, a and b. Unmarked days are free.
     const availability = [
-        { member_id: 'a', day: '2026-10-20', status: 'yes' },
+        { member_id: 'a', day: '2026-10-20', status: 'busy' },
         { member_id: 'b', day: '2026-10-20', status: 'maybe' },
-        { member_id: 'a', day: '2026-10-21', status: 'yes' },
-        { member_id: 'b', day: '2026-10-21', status: 'yes' },
-        { member_id: 'a', day: '2026-10-01', status: 'yes' },
-        { member_id: 'b', day: '2026-10-01', status: 'yes' }
+        { member_id: 'a', day: '2026-10-21', status: 'busy' },
+        { member_id: 'b', day: '2026-10-21', status: 'busy' },
+        { member_id: 'a', day: '2026-10-22', status: 'maybe' },
+        { member_id: 'a', day: '2026-10-01', status: 'busy' }
     ];
+    const stats = CalUtil.dayStats(availability);
 
     test('dayStats groups by day and status', () => {
-        const stats = CalUtil.dayStats(availability);
-        expect(stats['2026-10-20']).toEqual({ yes: ['a'], maybe: ['b'] });
+        expect(stats['2026-10-20']).toEqual({ busy: ['a'], maybe: ['b'] });
+        expect(stats['2026-10-19']).toBeUndefined();
     });
 
-    test('bestDays ranks upcoming days', () => {
-        const stats = CalUtil.dayStats(availability);
-        expect(CalUtil.bestDays(stats, '2026-10-19', 5)).toEqual(['2026-10-21', '2026-10-20']);
+    test('bestRanges merges equal days and ranks fewest busy, then fewest maybe', () => {
+        expect(CalUtil.bestRanges(stats, 2, '2026-10-18', 7, 10)).toEqual([
+            { start: '2026-10-18', end: '2026-10-19', free: 2, maybe: 0, busy: 0 },
+            { start: '2026-10-23', end: '2026-10-24', free: 2, maybe: 0, busy: 0 },
+            { start: '2026-10-22', end: '2026-10-22', free: 1, maybe: 1, busy: 0 },
+            { start: '2026-10-20', end: '2026-10-20', free: 0, maybe: 1, busy: 1 },
+            { start: '2026-10-21', end: '2026-10-21', free: 0, maybe: 0, busy: 2 }
+        ]);
+    });
+
+    test('bestRanges respects the limit and needs people', () => {
+        expect(CalUtil.bestRanges(stats, 2, '2026-10-18', 7, 1)).toHaveLength(1);
+        expect(CalUtil.bestRanges({}, 0, '2026-10-18', 7, 5)).toEqual([]);
+        expect(CalUtil.bestRanges({}, 3, '2026-10-18', 30, 5)).toEqual([
+            { start: '2026-10-18', end: '2026-11-16', free: 3, maybe: 0, busy: 0 }
+        ]);
     });
 });

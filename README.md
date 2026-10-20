@@ -1,9 +1,9 @@
 # Quick Cal
 
 A shared availability calendar for friends. Someone creates a calendar, sends the
-link around, and everyone taps or drags across the days they're free (or "maybe").
-The calendar shades days by how many people can make it, stars days that work for
-everyone, and lists the best upcoming dates.
+link around, and everyone taps or drags across the days they **can't** make (busy,
+or "maybe"). Every unmarked day counts as free. The calendar shades days by how many
+people are free and lists the best upcoming stretches of dates.
 
 There are no accounts. Built on [listlet-shared](https://github.com/fernandoviton/listlet-shared):
 vanilla JS with no build step, Supabase for storage, GitHub Pages for hosting, and a
@@ -37,7 +37,7 @@ leaks, the organizer can remove the stray people or delete the calendar and star
 need real identities, swap in listlet's Google auth (`shared/auth.js`) and add RLS policies keyed on
 `auth.uid()`.
 
-**Abuse limits:** 50 people per calendar, 1000 marked days per person, 366 days per write, dates within
+**Abuse limits:** 50 people per calendar, 1000 blocked days per person, 366 days per write, dates within
 about −1 to +2 years. Anyone with the public key can create calendars. Fine at friends scale; add a
 rate limit or captcha if that ever becomes a problem.
 
@@ -55,6 +55,8 @@ To try "another person" locally, open the same link in a private window.
 
 1. Create a project at [supabase.com](https://supabase.com) (or reuse one: all objects are prefixed `quickcal_`).
 2. Run `sql/setup.sql` in the SQL Editor. Re-running it wipes Quick Cal data.
+   Existing databases instead run the files in `sql/migrations/` that came after they were set up.
+   `001_blocked_dates.sql` switches from "available" marks to "busy" marks, and drops the old ones.
 3. No auth provider setup is needed.
 4. To test locally against the real backend, copy `config.js` to `config.local.js` and fill in
    `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`.
@@ -75,7 +77,7 @@ Same as listlet-shared:
 
 ```bash
 npm test          # Jest: helpers, and the API contract run against BOTH the mock and the real SQL (PGlite)
-npm run test:e2e  # Playwright: create, paint, drag, join, personal link, organizer actions
+npm run test:e2e  # Playwright: create, block out days, drag, join, personal link, organizer actions
 npm run test:all
 ```
 

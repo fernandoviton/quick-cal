@@ -5,7 +5,8 @@
 var App = (function() {
     var STORE_KEY = 'quickcal_identities';
     var POLL_MS = 15000;
-    var STATUS_LABEL = { yes: 'Available', maybe: 'Maybe' };
+    var STATUS_LABEL = { busy: 'Busy', maybe: 'Maybe' };
+    var BEST_HORIZON_DAYS = 180;
 
     var headerEl = null;
     var container = null;
@@ -241,7 +242,7 @@ var App = (function() {
             '<div class="qc-page">' +
                 '<section class="qc-card">' +
                     '<h1>Find a date that works</h1>' +
-                    '<p class="qc-muted">Make a calendar, send the link to your friends, and everyone marks the days they\'re free. No accounts needed.</p>' +
+                    '<p class="qc-muted">Make a calendar, send the link to your friends, and everyone blocks out the days they can\'t make. Every other day counts as free. No accounts needed.</p>' +
                     '<form id="createForm" class="qc-form">' +
                         '<label>Calendar name<input class="input" id="createTitle" maxlength="80" placeholder="Ski trip" required></label>' +
                         '<label>Your name or nickname<input class="input" id="createName" maxlength="40" placeholder="Sam" required></label>' +
@@ -294,7 +295,7 @@ var App = (function() {
         state = {
             token: token, data: null, version: null, stats: {}, me: null, isAdmin: false,
             month: { y: now.getFullYear(), m: now.getMonth() },
-            selected: todayIso(), paint: 'yes', drag: null,
+            selected: todayIso(), paint: 'busy', drag: null,
             pending: 0, queue: Promise.resolve()
         };
         var s = state;
@@ -408,12 +409,11 @@ var App = (function() {
                         '<div id="qcToolbar"></div>' +
                         '<div id="qcGrid"></div>' +
                         '<div class="qc-legend">' +
-                            '<span><i class="qc-swatch" style="background:#fff"></i>Nobody</span>' +
-                            '<span><i class="qc-swatch" style="background:#a5d6a7"></i>Some</span>' +
-                            '<span><i class="qc-swatch" style="background:#2e7d32"></i>Most</span>' +
-                            '<span><i class="qc-swatch qc-swatch-mine"></i>You\'re available</span>' +
+                            '<span><i class="qc-swatch" style="background:#2e7d32"></i>Everyone free</span>' +
+                            '<span><i class="qc-swatch" style="background:#a5d6a7"></i>Some free</span>' +
+                            '<span><i class="qc-swatch" style="background:#fff"></i>Nobody free</span>' +
+                            '<span><i class="qc-swatch qc-swatch-busy"></i>You\'re busy</span>' +
                             '<span><i class="qc-swatch qc-swatch-maybe"></i>You: maybe</span>' +
-                            '<span>&#9733; Everyone</span>' +
                         '</div>' +
                     '</div>' +
                     '<aside class="qc-side">' +
@@ -453,7 +453,7 @@ var App = (function() {
                 '<button class="qc-link-btn" data-action="leave">Leave calendar</button></p>';
         } else {
             html += '<form id="joinForm" class="qc-join">' +
-                    '<label for="joinName">Add your dates. What should we call you?</label>' +
+                    '<label for="joinName">Join to block out the days you can\'t make. What should we call you?</label>' +
                     '<div class="qc-join-row">' +
                         '<input class="input" id="joinName" maxlength="40" placeholder="Name or nickname" required>' +
                         '<button class="btn btn-primary" type="submit">Join</button>' +
@@ -476,15 +476,15 @@ var App = (function() {
             '</div>';
         if (state.me) {
             html += '<div class="qc-paint" role="radiogroup" aria-label="Mark days as">';
-            [['yes', 'Available'], ['maybe', 'Maybe'], ['clear', 'Clear']].forEach(function(p) {
+            [['busy', 'Busy'], ['maybe', 'Maybe'], ['clear', 'Free']].forEach(function(p) {
                 var active = state.paint === p[0];
                 html += '<button class="qc-paint-btn ' + p[0] + (active ? ' active' : '') + '" role="radio" aria-checked="' + active + '" data-paint="' + p[0] + '">' + p[1] + '</button>';
             });
             html += '</div>';
         }
         html += '</div><p class="qc-hint">' + (state.me
-            ? 'Tap a day or drag across days to mark them. Tap a marked day again to clear it.'
-            : 'Join above to mark your dates. Tap any day to see who\'s free.') + '</p>';
+            ? 'Tap or drag across the days you can\'t make. Unmarked days count as free. Tap a marked day again to clear it.'
+            : 'Join above to block out your dates. Tap any day to see who\'s free.') + '</p>';
         document.getElementById('qcToolbar').innerHTML = html;
     }
 
@@ -492,16 +492,18 @@ var App = (function() {
         if (!state.me) return null;
         var s = state.stats[day];
         if (!s) return null;
-        if (s.yes.indexOf(state.me.id) >= 0) return 'yes';
+        if (s.busy.indexOf(state.me.id) >= 0) return 'busy';
         if (s.maybe.indexOf(state.me.id) >= 0) return 'maybe';
         return null;
     }
 
-    // White → green by share of people available (maybe counts half).
+    // White → green by share of people free (maybe counts half). Squared so
+    // "everyone free" stands out clearly from "almost everyone".
     function heatColor(score) {
         var from = [255, 255, 255];
         var to = [46, 125, 50];
-        var rgb = from.map(function(f, i) { return Math.round(f + (to[i] - f) * score); });
+        var t = score * score;
+        var rgb = from.map(function(f, i) { return Math.round(f + (to[i] - f) * t); });
         return 'rgb(' + rgb.join(',') + ')';
     }
 
@@ -515,10 +517,10 @@ var App = (function() {
         });
         weeks.forEach(function(week) {
             week.forEach(function(cell) {
-                var s = state.stats[cell.iso] || { yes: [], maybe: [] };
-                var yes = s.yes.length;
+                var s = state.stats[cell.iso] || { busy: [], maybe: [] };
                 var maybe = s.maybe.length;
-                var score = n ? (yes + maybe / 2) / n : 0;
+                var free = n - s.busy.length - maybe;
+                var score = n ? (free + maybe / 2) / n : 0;
                 var mine = myStatus(cell.iso);
                 var classes = ['qc-day'];
                 if (!cell.inMonth) classes.push('out');
@@ -526,15 +528,13 @@ var App = (function() {
                 if (cell.iso === today) classes.push('today');
                 if (cell.iso === state.selected) classes.push('selected');
                 if (mine) classes.push('mine-' + mine);
-                if (score > 0.55) classes.push('dark');
-                var all = n >= 2 && yes === n;
-                var aria = formatDay(cell.iso, true) + ': ' + yes + ' of ' + n + ' available' +
+                if (score * score > 0.55) classes.push('dark');
+                var aria = formatDay(cell.iso, true) + ': ' + free + ' of ' + n + ' free' +
                     (maybe ? ', ' + maybe + ' maybe' : '') + (mine ? ', you: ' + STATUS_LABEL[mine].toLowerCase() : '');
                 html += '<button class="' + classes.join(' ') + '" data-day="' + cell.iso + '" role="gridcell" ' +
                     'style="background:' + heatColor(score) + '" aria-label="' + escapeHtml(aria) + '">' +
                     '<span class="qc-num">' + CalUtil.parseIso(cell.iso).getDate() + '</span>' +
-                    (all ? '<span class="qc-star" aria-hidden="true">&#9733;</span>' : '') +
-                    (yes || maybe ? '<span class="qc-count" aria-hidden="true">' + yes + '/' + n + (maybe ? ' <small>+' + maybe + '?</small>' : '') + '</span>' : '') +
+                    (free < n ? '<span class="qc-count" aria-hidden="true">' + free + '/' + n + (maybe ? ' <small>+' + maybe + '?</small>' : '') + '</span>' : '') +
                 '</button>';
             });
         });
@@ -560,39 +560,40 @@ var App = (function() {
             el.innerHTML = '<p class="qc-muted">Tap a day to see who\'s free.</p>';
             return;
         }
-        var s = state.stats[day] || { yes: [], maybe: [] };
-        var answered = s.yes.concat(s.maybe);
-        var none = state.data.members.filter(function(m) { return answered.indexOf(m.id) < 0; })
+        var s = state.stats[day] || { busy: [], maybe: [] };
+        var marked = s.busy.concat(s.maybe);
+        var free = state.data.members.filter(function(m) { return marked.indexOf(m.id) < 0; })
             .map(function(m) { return m.name; });
         var html = '<h2>' + escapeHtml(formatDay(day, true)) + '</h2>';
         if (state.me && day >= todayIso()) {
             var mine = myStatus(day);
             html += '<div class="qc-mine" role="group" aria-label="Your answer for this day">';
-            [['yes', 'Available'], ['maybe', 'Maybe'], ['clear', 'Not set']].forEach(function(p) {
+            [['busy', 'Busy'], ['maybe', 'Maybe'], ['clear', 'Free']].forEach(function(p) {
                 var on = (mine || 'clear') === p[0];
                 html += '<button class="qc-paint-btn ' + p[0] + (on ? ' active' : '') + '" aria-pressed="' + on + '" data-set-day="' + p[0] + '">' + p[1] + '</button>';
             });
             html += '</div>';
         }
-        html += nameList('Available', namesFor(s.yes), 'yes') +
+        html += nameList('Free', free, 'free') +
             nameList('Maybe', namesFor(s.maybe), 'maybe') +
-            nameList('No answer', none, 'none');
+            nameList('Busy', namesFor(s.busy), 'busy');
         if (!state.data.members.length) html += '<p class="qc-muted">Nobody has joined yet.</p>';
         el.innerHTML = html;
     }
 
     function renderBest() {
         var n = state.data.members.length;
-        var days = CalUtil.bestDays(state.stats, todayIso(), 6);
-        var html = '<h2>Best upcoming days</h2>';
-        if (!days.length) {
-            html += '<p class="qc-muted">No dates marked yet.</p>';
+        var ranges = CalUtil.bestRanges(state.stats, n, todayIso(), BEST_HORIZON_DAYS, 6);
+        var html = '<h2>Best upcoming dates</h2>';
+        if (!ranges.length) {
+            html += '<p class="qc-muted">Nobody has joined yet.</p>';
         } else {
             html += '<ol class="qc-best">';
-            days.forEach(function(d) {
-                var s = state.stats[d];
-                html += '<li><button class="qc-link-btn" data-goto="' + d + '">' + escapeHtml(formatDay(d)) + '</button>' +
-                    '<span class="qc-muted">' + s.yes.length + '/' + n + ' available' + (s.maybe.length ? ' · ' + s.maybe.length + ' maybe' : '') + '</span></li>';
+            ranges.forEach(function(r) {
+                var label = formatDay(r.start) + (r.end !== r.start ? ' – ' + formatDay(r.end) : '');
+                var who = r.free === n ? (n === 1 ? 'free' : 'everyone free') : r.free + '/' + n + ' free';
+                html += '<li><button class="qc-link-btn" data-goto="' + r.start + '">' + escapeHtml(label) + '</button>' +
+                    '<span class="qc-muted">' + who + (r.maybe ? ' · ' + r.maybe + ' maybe' : '') + '</span></li>';
             });
             html += '</ol>';
         }
@@ -609,7 +610,7 @@ var App = (function() {
         state.data.members.forEach(function(m) {
             var isMe = state.me && state.me.id === m.id;
             html += '<li><span>' + escapeHtml(m.name) + (isMe ? ' <span class="qc-tag">you</span>' : '') + '</span>' +
-                '<span class="qc-muted">' + (counts[m.id] || 0) + ' upcoming days</span>' +
+                '<span class="qc-muted">' + (counts[m.id] ? counts[m.id] + ' upcoming ' + (counts[m.id] === 1 ? 'day' : 'days') + ' blocked' : 'nothing blocked yet') + '</span>' +
                 (state.isAdmin && !isMe ? '<button class="qc-remove-btn" data-remove="' + escapeHtml(m.id) + '" title="Remove ' + escapeHtml(m.name) + '" aria-label="Remove ' + escapeHtml(m.name) + '">&#10005;</button>' : '') +
             '</li>';
         });
@@ -703,7 +704,7 @@ var App = (function() {
         var cells = container.querySelectorAll('.qc-day');
         for (var i = 0; i < cells.length; i++) {
             var c = cells[i];
-            c.classList.remove('preview-yes', 'preview-maybe', 'preview-clear');
+            c.classList.remove('preview-busy', 'preview-maybe', 'preview-clear');
             if (range.indexOf(c.dataset.day) >= 0 && canPaint(c.dataset.day)) c.classList.add(cls);
         }
     }

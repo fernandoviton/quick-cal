@@ -4,6 +4,7 @@
     --qc-green: #2e7d32;
     --qc-green-dark: #1b5e20;
     --qc-amber: #f9a825;
+    --qc-red: #c62828;
     --qc-text: #222;
     --qc-muted: #666;
     --qc-border: #e0e0e0;
@@ -264,8 +265,8 @@ body {
     border-left: none;
 }
 
-.qc-paint-btn.active.yes {
-    background: var(--qc-green);
+.qc-paint-btn.active.busy {
+    background: var(--qc-red);
     color: white;
 }
 
@@ -275,7 +276,7 @@ body {
 }
 
 .qc-paint-btn.active.clear {
-    background: #616161;
+    background: var(--qc-green);
     color: white;
 }
 
@@ -346,17 +347,18 @@ body {
     outline-offset: 1px;
 }
 
-.qc-day.mine-yes {
-    box-shadow: inset 0 0 0 3px var(--qc-green-dark);
+.qc-day.mine-busy {
+    box-shadow: inset 0 0 0 3px var(--qc-red);
 }
 
 .qc-day.mine-maybe {
     box-shadow: inset 0 0 0 3px var(--qc-amber);
 }
 
-.qc-day.preview-yes {
-    box-shadow: inset 0 0 0 4px var(--qc-green-dark);
-    background-image: linear-gradient(rgba(46, 125, 50, 0.35), rgba(46, 125, 50, 0.35));
+.qc-day.preview-busy {
+    box-shadow: inset 0 0 0 4px var(--qc-red);
+    background-image: linear-gradient(rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.55)), linear-gradient(rgba(198, 40, 40, 0.35), rgba(198, 40, 40, 0.35));
+    color: var(--qc-text);
 }
 
 .qc-day.preview-maybe {
@@ -365,23 +367,14 @@ body {
 }
 
 .qc-day.preview-clear {
-    box-shadow: inset 0 0 0 4px #616161;
-    background-image: linear-gradient(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.6));
-    color: var(--qc-text);
+    box-shadow: inset 0 0 0 4px var(--qc-green-dark);
+    background-image: linear-gradient(rgba(46, 125, 50, 0.35), rgba(46, 125, 50, 0.35));
 }
 
 .qc-num {
     font-weight: 600;
     font-size: 0.9rem;
     align-self: flex-start;
-}
-
-.qc-star {
-    position: absolute;
-    top: 3px;
-    right: 6px;
-    color: #ffd54f;
-    text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
 }
 
 .qc-count {
@@ -435,8 +428,8 @@ body {
     border: 1px solid var(--qc-border);
 }
 
-.qc-swatch-mine {
-    box-shadow: inset 0 0 0 2px var(--qc-green-dark);
+.qc-swatch-busy {
+    box-shadow: inset 0 0 0 2px var(--qc-red);
 }
 
 .qc-swatch-maybe {
@@ -452,9 +445,9 @@ body {
     letter-spacing: 0.03em;
 }
 
-.qc-side h3.yes { color: var(--qc-green); }
+.qc-side h3.free { color: var(--qc-green); }
 .qc-side h3.maybe { color: #b26a00; }
-.qc-side h3.none { color: var(--qc-muted); }
+.qc-side h3.busy { color: var(--qc-red); }
 
 .qc-names {
     display: flex;

@@ -96,12 +96,12 @@ describe.each([
         const d1 = CalUtil.addDays(today, 3);
         const d2 = CalUtil.addDays(today, 4);
 
-        await api.call('set_days', { p_token: token, p_member_id: id, p_member_key: key, p_days: [d1, d2, d1], p_status: 'yes' });
+        await api.call('set_days', { p_token: token, p_member_id: id, p_member_key: key, p_days: [d1, d2, d1], p_status: 'busy' });
         await api.call('set_days', { p_token: token, p_member_id: id, p_member_key: key, p_days: [d2], p_status: 'maybe' });
         let cal = await api.call('get', { p_token: token });
         expect(cal.members).toEqual([{ id, name: 'Sam' }]);
         expect(cal.availability).toEqual([
-            { member_id: id, day: d1, status: 'yes' },
+            { member_id: id, day: d1, status: 'busy' },
             { member_id: id, day: d2, status: 'maybe' }
         ]);
         expect(cal.updated_at).not.toBe(before);
@@ -117,7 +117,7 @@ describe.each([
         const bobKey = secret();
         await api.call('join', { p_token: token, p_name: 'Bob', p_member_key: bobKey });
 
-        const args = { p_token: token, p_member_id: alice, p_member_key: bobKey, p_days: [today], p_status: 'yes' };
+        const args = { p_token: token, p_member_id: alice, p_member_key: bobKey, p_days: [today], p_status: 'busy' };
         await expect(api.call('set_days', args)).rejects.toMatchObject({ code: 'forbidden' });
         await expect(api.call('rename_member', { p_token: token, p_member_id: alice, p_member_key: bobKey, p_name: 'x' }))
             .rejects.toMatchObject({ code: 'forbidden' });
@@ -130,25 +130,28 @@ describe.each([
         const id = await api.call('join', { p_token: token, p_name: 'Sam', p_member_key: key });
         const other = secret();
         await api.call('create', { p_token: other, p_admin_key: secret(), p_title: 'Other' });
-        await expect(api.call('set_days', { p_token: other, p_member_id: id, p_member_key: key, p_days: [today], p_status: 'yes' }))
+        await expect(api.call('set_days', { p_token: other, p_member_id: id, p_member_key: key, p_days: [today], p_status: 'busy' }))
             .rejects.toMatchObject({ code: 'forbidden' });
     });
 
     test('day batches are validated', async () => {
         const key = secret();
         const id = await api.call('join', { p_token: token, p_name: 'Sam', p_member_key: key });
-        const base = { p_token: token, p_member_id: id, p_member_key: key, p_status: 'yes' };
+        const base = { p_token: token, p_member_id: id, p_member_key: key, p_status: 'busy' };
         await expect(api.call('set_days', { ...base, p_days: [] })).rejects.toMatchObject({ code: 'invalid_days' });
         await expect(api.call('set_days', { ...base, p_days: [CalUtil.addDays(today, 900)] }))
             .rejects.toMatchObject({ code: 'invalid_days' });
         await expect(api.call('set_days', { ...base, p_days: [today], p_status: 'no' }))
+            .rejects.toMatchObject({ code: 'invalid_status' });
+        // 'yes' was the old "available" status, before marks meant "blocked".
+        await expect(api.call('set_days', { ...base, p_days: [today], p_status: 'yes' }))
             .rejects.toMatchObject({ code: 'invalid_status' });
     });
 
     test('rename and leave', async () => {
         const key = secret();
         const id = await api.call('join', { p_token: token, p_name: 'Sam', p_member_key: key });
-        await api.call('set_days', { p_token: token, p_member_id: id, p_member_key: key, p_days: [today], p_status: 'yes' });
+        await api.call('set_days', { p_token: token, p_member_id: id, p_member_key: key, p_days: [today], p_status: 'busy' });
         await api.call('rename_member', { p_token: token, p_member_id: id, p_member_key: key, p_name: 'Samwise' });
         expect((await api.call('get', { p_token: token })).members[0].name).toBe('Samwise');
         await api.call('leave', { p_token: token, p_member_id: id, p_member_key: key });
@@ -220,5 +223,30 @@ describe('postgres lockdown (anon role)', () => {
         await api.db.exec('set role anon');
         expect(dump).not.toContain(token);
         expect(dump).not.toContain(adminKey);
+    });
+});
+
+describe('migration 001 (available -> blocked dates)', () => {
+    test('drops old "available" marks, keeps maybes, then accepts busy', async () => {
+        const api = await pgBackend();
+        const token = secret();
+        const key = secret();
+        await api.call('create', { p_token: token, p_admin_key: secret(), p_title: 'x' });
+        const id = await api.call('join', { p_token: token, p_name: 'Sam', p_member_key: key });
+        // Roll the table back to the old rules and add old-style rows.
+        await api.db.exec('reset role');
+        await api.db.exec(`
+            alter table quickcal_availability drop constraint quickcal_availability_status_check,
+                add constraint quickcal_availability_status_check check (status in ('yes', 'maybe'));
+            insert into quickcal_availability values ('${id}', current_date, 'yes'), ('${id}', current_date + 1, 'maybe');
+        `);
+        await api.db.exec(fs.readFileSync(path.join(__dirname, '../../sql/migrations/001_blocked_dates.sql'), 'utf8'));
+        await api.db.exec('set role anon');
+
+        const after = await api.call('get', { p_token: token });
+        expect(after.availability).toEqual([{ member_id: id, day: CalUtil.addDays(today, 1), status: 'maybe' }]);
+        await api.call('set_days', { p_token: token, p_member_id: id, p_member_key: key, p_days: [today], p_status: 'busy' });
+        expect((await api.call('get', { p_token: token })).availability).toHaveLength(2);
+        await api.db.close();
     });
 });

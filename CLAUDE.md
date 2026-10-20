@@ -19,6 +19,10 @@ listlet-shared starter kit. See README.md for the privacy model.
 - `cal-util.js`: pure helpers (secrets, hash links, dates, day stats). Also `require`-able from Jest.
 - `cal-api.js`: `CalApi.call(name, args)` maps to `supabase.rpc('quickcal_' + name, args)`, or to the mock.
 - `sql/setup.sql`: schema, RPCs, and grants. It's the source of truth for the API contract.
+- `sql/migrations/`: upgrades for the live database (re-running setup.sql wipes data). Add one for every schema or RPC change, and a contract test that applies it.
+
+Only **blocked** days are stored (`status` is `busy` or `maybe`). A day with no row means the person is free, so
+"free" counts are always derived from the member count.
 - `shared/`: listlet-shared infrastructure. **Do not edit.** Only config-loader, supabase-client, utils, version, common.css and header.css are loaded; auth/home/api/sync are unused.
 
 ## Changing the API

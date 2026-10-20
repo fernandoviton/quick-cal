@@ -93,26 +93,42 @@ var CalUtil = (function() {
         return weeks;
     }
 
-    // { iso: { yes: [memberId], maybe: [memberId] } }
+    // Only blocked days are stored, so this lists who's busy or maybe on each
+    // marked day. Anyone not listed is free. { iso: { busy: [memberId], maybe: [memberId] } }
     function dayStats(availability) {
         var stats = {};
         for (var i = 0; i < availability.length; i++) {
             var a = availability[i];
-            if (!stats[a.day]) stats[a.day] = { yes: [], maybe: [] };
+            if (!stats[a.day]) stats[a.day] = { busy: [], maybe: [] };
             stats[a.day][a.status].push(a.member_id);
         }
         return stats;
     }
 
-    // Upcoming days (>= fromIso) ranked by yes count, then maybe, then date.
-    function bestDays(stats, fromIso, limit) {
-        var days = Object.keys(stats).filter(function(d) { return d >= fromIso; });
-        days.sort(function(a, b) {
-            return (stats[b].yes.length - stats[a].yes.length) ||
-                (stats[b].maybe.length - stats[a].maybe.length) ||
-                (a < b ? -1 : 1);
+    // Best stretches in the `horizon` days from fromIso for `n` people.
+    // Consecutive days with the same counts are merged into one range. Ranges
+    // are ranked by fewest busy, then fewest maybe, then earliest.
+    // Returns [{ start, end, free, maybe, busy }].
+    function bestRanges(stats, n, fromIso, horizon, limit) {
+        if (!n) return [];
+        var runs = [];
+        var run = null;
+        for (var i = 0; i < horizon; i++) {
+            var day = addDays(fromIso, i);
+            var s = stats[day];
+            var busy = s ? s.busy.length : 0;
+            var maybe = s ? s.maybe.length : 0;
+            if (run && run.busy === busy && run.maybe === maybe) {
+                run.end = day;
+            } else {
+                run = { start: day, end: day, free: n - busy - maybe, maybe: maybe, busy: busy };
+                runs.push(run);
+            }
+        }
+        runs.sort(function(a, b) {
+            return (a.busy - b.busy) || (a.maybe - b.maybe) || (a.start < b.start ? -1 : 1);
         });
-        return days.slice(0, limit);
+        return runs.slice(0, limit);
     }
 
     return {
@@ -126,7 +142,7 @@ var CalUtil = (function() {
         daysBetween: daysBetween,
         monthGrid: monthGrid,
         dayStats: dayStats,
-        bestDays: bestDays
+        bestRanges: bestRanges
     };
 })();
 

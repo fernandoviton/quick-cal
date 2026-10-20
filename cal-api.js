@@ -134,7 +134,7 @@ function createMockBackend(storage, today) {
             var mine = Object.assign({}, cal.availability[a.p_member_id]);
             if (a.p_status == null) {
                 days.forEach(function(d) { delete mine[d]; });
-            } else if (a.p_status === 'yes' || a.p_status === 'maybe') {
+            } else if (a.p_status === 'busy' || a.p_status === 'maybe') {
                 days.forEach(function(d) { mine[d] = a.p_status; });
                 if (Object.keys(mine).length > MAX_DAYS_PER_MEMBER) fail('limit');
             } else {

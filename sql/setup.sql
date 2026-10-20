@@ -35,7 +35,8 @@ create index idx_quickcal_members_calendar on quickcal_members(calendar_id);
 create table quickcal_availability (
     member_id uuid not null references quickcal_members(id) on delete cascade,
     day date not null,
-    status text not null check (status in ('yes', 'maybe')),
+    -- Only blocked days are stored; a day with no row is free.
+    status text not null check (status in ('busy', 'maybe')),
     primary key (member_id, day)
 );
 
@@ -211,7 +212,7 @@ begin
 end;
 $$;
 
--- Sets (p_status 'yes' / 'maybe') or clears (p_status null) a batch of days.
+-- Sets (p_status 'busy' / 'maybe') or clears (p_status null) a batch of days.
 create or replace function public.quickcal_set_days(p_token text, p_member_id uuid, p_member_key text, p_days date[], p_status text)
 returns void language plpgsql security definer set search_path = '' as $$
 declare
@@ -226,7 +227,7 @@ begin
 
     if p_status is null then
         delete from public.quickcal_availability where member_id = p_member_id and day = any(p_days);
-    elsif p_status in ('yes', 'maybe') then
+    elsif p_status in ('busy', 'maybe') then
         insert into public.quickcal_availability (member_id, day, status)
         select distinct p_member_id, d, p_status from pg_catalog.unnest(p_days) d
         on conflict (member_id, day) do update set status = excluded.status;
