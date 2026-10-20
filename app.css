@@ -473,6 +473,51 @@ body {
     gap: 6px;
 }
 
+.qc-find {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.qc-find select {
+    width: auto;
+    padding: 7px 10px;
+    font-size: 0.9rem;
+}
+
+.qc-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.qc-best .qc-link-btn.active {
+    font-weight: 700;
+}
+
+.qc-note {
+    margin: 12px 0 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #fff8e1;
+    color: #6d4c00;
+    font-size: 0.85rem;
+}
+
+.qc-day.highlight {
+    outline: 3px dashed #1976d2;
+    outline-offset: -1px;
+}
+
+.qc-day.highlight.selected {
+    outline-style: solid;
+    outline-offset: 1px;
+}
+
 .qc-best li .qc-muted {
     margin-left: 8px;
     font-size: 0.85rem;

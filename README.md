@@ -3,7 +3,14 @@
 A shared availability calendar for friends. Someone creates a calendar, sends the
 link around, and everyone taps or drags across the days they **can't** make (busy,
 or "maybe"). Every unmarked day counts as free. The calendar shades days by how many
-people are free and lists the best upcoming stretches of dates.
+people are free.
+
+**Dates that work** lists the stretches when *everyone* is free over the next 6 months:
+- **Weekends:** Sat–Sun, a long weekend (3 days), or Fri–Mon. Each weekend is widened to a free Friday or Monday.
+- **Any days:** runs of at least N days in a row.
+- **Count "maybe" as free:** off by default.
+
+These settings are remembered per calendar, on each device.
 
 There are no accounts. Built on [listlet-shared](https://github.com/fernandoviton/listlet-shared):
 vanilla JS with no build step, Supabase for storage, GitHub Pages for hosting, and a

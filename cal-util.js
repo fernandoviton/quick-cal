@@ -105,30 +105,55 @@ var CalUtil = (function() {
         return stats;
     }
 
-    // Best stretches in the `horizon` days from fromIso for `n` people.
-    // Consecutive days with the same counts are merged into one range. Ranges
-    // are ranked by fewest busy, then fewest maybe, then earliest.
-    // Returns [{ start, end, free, maybe, busy }].
-    function bestRanges(stats, n, fromIso, horizon, limit) {
+    // Dates in the `horizon` days from fromIso when all `n` people are free.
+    // opts.allowMaybe: a "maybe" doesn't block the day.
+    // opts.mode 'weekend': one result per weekend whose Sat and Sun are both
+    //   free, widened to the free Fri and/or Mon, and kept if it's at least
+    //   opts.minDays long (2 = Sat–Sun, 3 = long weekend, 4 = Fri–Mon).
+    // opts.mode 'any': every run of free days at least opts.minDays long.
+    // Returns [{ start, end, days, maybeDays }] in date order.
+    function findDates(stats, n, fromIso, horizon, opts) {
         if (!n) return [];
-        var runs = [];
-        var run = null;
-        for (var i = 0; i < horizon; i++) {
-            var day = addDays(fromIso, i);
+        var minDays = Math.max(1, opts.minDays || 1);
+        var lastIso = addDays(fromIso, horizon - 1);
+        function free(day) {
+            if (day < fromIso) return false;
             var s = stats[day];
-            var busy = s ? s.busy.length : 0;
-            var maybe = s ? s.maybe.length : 0;
-            if (run && run.busy === busy && run.maybe === maybe) {
-                run.end = day;
-            } else {
-                run = { start: day, end: day, free: n - busy - maybe, maybe: maybe, busy: busy };
-                runs.push(run);
+            return !s || (!s.busy.length && (opts.allowMaybe || !s.maybe.length));
+        }
+        function result(start, end) {
+            var days = daysBetween(start, end);
+            var maybeDays = days.filter(function(d) { return stats[d] && stats[d].maybe.length; }).length;
+            return { start: start, end: end, days: days.length, maybeDays: maybeDays };
+        }
+
+        var results = [];
+        var day;
+        if (opts.mode === 'weekend') {
+            day = fromIso;
+            while (parseIso(day).getDay() !== 6) day = addDays(day, 1);
+            for (; day <= lastIso; day = addDays(day, 7)) {
+                var sun = addDays(day, 1);
+                if (!free(day) || !free(sun)) continue;
+                var fri = addDays(day, -1);
+                var mon = addDays(day, 2);
+                var r = result(free(fri) ? fri : day, free(mon) ? mon : sun);
+                if (r.days >= minDays) results.push(r);
+            }
+            return results;
+        }
+
+        var start = null;
+        for (day = fromIso; day <= addDays(lastIso, 1); day = addDays(day, 1)) {
+            if (day <= lastIso && free(day)) {
+                if (!start) start = day;
+            } else if (start) {
+                var run = result(start, addDays(day, -1));
+                if (run.days >= minDays) results.push(run);
+                start = null;
             }
         }
-        runs.sort(function(a, b) {
-            return (a.busy - b.busy) || (a.maybe - b.maybe) || (a.start < b.start ? -1 : 1);
-        });
-        return runs.slice(0, limit);
+        return results;
     }
 
     return {
@@ -142,7 +167,7 @@ var CalUtil = (function() {
         daysBetween: daysBetween,
         monthGrid: monthGrid,
         dayStats: dayStats,
-        bestRanges: bestRanges
+        findDates: findDates
     };
 })();
 

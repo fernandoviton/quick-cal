@@ -6,7 +6,10 @@ var App = (function() {
     var STORE_KEY = 'quickcal_identities';
     var POLL_MS = 15000;
     var STATUS_LABEL = { busy: 'Busy', maybe: 'Maybe' };
-    var BEST_HORIZON_DAYS = 180;
+    var FIND_HORIZON_DAYS = 180;
+    var FIND_LIMIT = 8;
+    var FIND_DEFAULTS = { mode: 'weekend', minDays: 2, allowMaybe: false };
+    var WEEKEND_LENGTHS = [[2, 'Sat–Sun'], [3, 'Long weekend (3 days)'], [4, 'Fri–Mon']];
 
     var headerEl = null;
     var container = null;
@@ -56,6 +59,7 @@ var App = (function() {
         });
         container.addEventListener('click', onClick);
         container.addEventListener('submit', onSubmit);
+        container.addEventListener('change', onChange);
         container.addEventListener('pointerdown', onPointerDown);
         container.addEventListener('pointermove', onPointerMove);
         container.addEventListener('pointerup', onPointerUp);
@@ -295,7 +299,8 @@ var App = (function() {
         state = {
             token: token, data: null, version: null, stats: {}, me: null, isAdmin: false,
             month: { y: now.getFullYear(), m: now.getMonth() },
-            selected: todayIso(), paint: 'busy', drag: null,
+            selected: todayIso(), paint: 'busy', drag: null, highlight: null,
+            find: Object.assign({}, FIND_DEFAULTS, getEntry(token).find),
             pending: 0, queue: Promise.resolve()
         };
         var s = state;
@@ -418,7 +423,11 @@ var App = (function() {
                     '</div>' +
                     '<aside class="qc-side">' +
                         '<section id="qcDetail" class="qc-card"></section>' +
-                        '<section id="qcBest" class="qc-card"></section>' +
+                        '<section class="qc-card">' +
+                            '<h2>Dates that work</h2>' +
+                            '<div id="qcFind"></div>' +
+                            '<div id="qcBest"></div>' +
+                        '</section>' +
                         '<section id="qcMembers" class="qc-card"></section>' +
                         '<div id="qcAdmin"></div>' +
                     '</aside>' +
@@ -426,6 +435,7 @@ var App = (function() {
             '</div>';
         renderTop();
         renderToolbar();
+        renderFind();
         renderDynamic();
     }
 
@@ -527,6 +537,7 @@ var App = (function() {
                 if (cell.iso < today) classes.push('past');
                 if (cell.iso === today) classes.push('today');
                 if (cell.iso === state.selected) classes.push('selected');
+                if (state.highlight && cell.iso >= state.highlight.start && cell.iso <= state.highlight.end) classes.push('highlight');
                 if (mine) classes.push('mine-' + mine);
                 if (score * score > 0.55) classes.push('dark');
                 var aria = formatDay(cell.iso, true) + ': ' + free + ' of ' + n + ' free' +
@@ -581,21 +592,74 @@ var App = (function() {
         el.innerHTML = html;
     }
 
+    // The search settings (static, so polling doesn't reset the inputs).
+    function renderFind() {
+        var f = state.find;
+        var lengths = f.mode === 'weekend' ? WEEKEND_LENGTHS : [];
+        if (f.mode !== 'weekend') {
+            for (var i = 1; i <= 14; i++) lengths.push([i, i === 1 ? 'Any single day' : 'At least ' + i + ' days in a row']);
+        }
+        var html = '<div class="qc-find">' +
+            '<div class="qc-paint" role="radiogroup" aria-label="Looking for">';
+        [['weekend', 'Weekends'], ['any', 'Any days']].forEach(function(m) {
+            var on = f.mode === m[0];
+            html += '<button class="qc-paint-btn clear' + (on ? ' active' : '') + '" role="radio" aria-checked="' + on + '" data-find-mode="' + m[0] + '">' + m[1] + '</button>';
+        });
+        html += '</div>' +
+            '<select class="input" id="findLen" aria-label="Length">' +
+                lengths.map(function(l) {
+                    return '<option value="' + l[0] + '"' + (l[0] === f.minDays ? ' selected' : '') + '>' + escapeHtml(l[1]) + '</option>';
+                }).join('') +
+            '</select>' +
+            '<label class="qc-check"><input type="checkbox" id="findMaybe"' + (f.allowMaybe ? ' checked' : '') + '> Count "maybe" as free</label>' +
+        '</div>';
+        document.getElementById('qcFind').innerHTML = html;
+    }
+
+    function setFind(changes) {
+        Object.assign(state.find, changes);
+        if (state.find.mode === 'weekend') state.find.minDays = Math.min(4, Math.max(2, state.find.minDays));
+        updateEntry(state.token, { find: state.find });
+        state.highlight = null;
+        renderFind();
+        renderBest();
+        renderGrid();
+    }
+
+    function formatRange(start, end) {
+        return formatDay(start) + (end !== start ? ' – ' + formatDay(end) : '');
+    }
+
     function renderBest() {
-        var n = state.data.members.length;
-        var ranges = CalUtil.bestRanges(state.stats, n, todayIso(), BEST_HORIZON_DAYS, 6);
-        var html = '<h2>Best upcoming dates</h2>';
-        if (!ranges.length) {
+        var members = state.data.members;
+        var results = CalUtil.findDates(state.stats, members.length, todayIso(), FIND_HORIZON_DAYS, state.find);
+        var html = '';
+        if (!members.length) {
             html += '<p class="qc-muted">Nobody has joined yet.</p>';
+        } else if (!results.length) {
+            html += '<p class="qc-muted">No dates where everyone\'s free in the next 6 months. Try a shorter length' +
+                (state.find.allowMaybe ? '' : ' or counting "maybe" as free') + '.</p>';
         } else {
             html += '<ol class="qc-best">';
-            ranges.forEach(function(r) {
-                var label = formatDay(r.start) + (r.end !== r.start ? ' – ' + formatDay(r.end) : '');
-                var who = r.free === n ? (n === 1 ? 'free' : 'everyone free') : r.free + '/' + n + ' free';
-                html += '<li><button class="qc-link-btn" data-goto="' + r.start + '">' + escapeHtml(label) + '</button>' +
-                    '<span class="qc-muted">' + who + (r.maybe ? ' · ' + r.maybe + ' maybe' : '') + '</span></li>';
+            results.slice(0, FIND_LIMIT).forEach(function(r) {
+                var on = state.highlight && state.highlight.start === r.start && state.highlight.end === r.end;
+                html += '<li><button class="qc-link-btn' + (on ? ' active' : '') + '" data-goto-range="' + r.start + '|' + r.end + '">' +
+                        escapeHtml(formatRange(r.start, r.end)) + '</button>' +
+                    '<span class="qc-muted">' + r.days + (r.days === 1 ? ' day' : ' days') +
+                        (r.maybeDays ? ' · ' + r.maybeDays + (r.maybeDays === 1 ? ' maybe day' : ' maybe days') : '') + '</span></li>';
             });
             html += '</ol>';
+            if (results.length > FIND_LIMIT) {
+                html += '<p class="qc-muted">' + (results.length - FIND_LIMIT) + ' more in the next 6 months.</p>';
+            }
+        }
+        // Unmarked days count as free, so flag people who haven't marked anything.
+        var marked = {};
+        state.data.availability.forEach(function(a) { marked[a.member_id] = true; });
+        var blank = members.filter(function(m) { return !marked[m.id]; }).map(function(m) { return m.name; });
+        if (blank.length && members.length > 1) {
+            html += '<p class="qc-note">' + escapeHtml(blank.join(', ')) + (blank.length === 1 ? ' hasn\'t' : ' haven\'t') +
+                ' blocked any days yet, so ' + (blank.length === 1 ? 'they count' : 'they all count') + ' as free everywhere.</p>';
         }
         document.getElementById('qcBest').innerHTML = html;
     }
@@ -742,6 +806,12 @@ var App = (function() {
     // Event handling
     // ---------------------------------------------------------------------
 
+    function onChange(e) {
+        if (!state || !state.data) return;
+        if (e.target.id === 'findLen') setFind({ minDays: parseInt(e.target.value, 10) });
+        if (e.target.id === 'findMaybe') setFind({ allowMaybe: e.target.checked });
+    }
+
     function onSubmit(e) {
         e.preventDefault();
         if (e.target.id === 'createForm') createCalendar();
@@ -776,7 +846,14 @@ var App = (function() {
             setDays([state.selected], t.dataset.setDay === 'clear' ? null : t.dataset.setDay);
             return;
         }
-        if (t.dataset.goto) return gotoDay(t.dataset.goto);
+        if (t.dataset.gotoRange) {
+            var range = t.dataset.gotoRange.split('|');
+            state.highlight = { start: range[0], end: range[1] };
+            gotoDay(range[0]);
+            renderBest();
+            return;
+        }
+        if (t.dataset.findMode) return setFind({ mode: t.dataset.findMode });
         if (t.dataset.remove) return removeMember(t.dataset.remove);
 
         switch (t.dataset.action) {
@@ -826,7 +903,7 @@ var App = (function() {
             var id = await mutate('join', { p_token: s.token, p_name: name, p_member_key: key });
             updateEntry(s.token, { memberId: id, memberKey: key, name: name.trim() });
             await refresh();
-            toast('You\'re in. Tap or drag across the days you\'re free.');
+            toast('You\'re in. Tap or drag across the days you can\'t make.');
         } catch (e) {}
     }
 

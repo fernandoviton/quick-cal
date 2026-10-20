@@ -11,6 +11,17 @@ function nextMonthDays() {
 
 const day = (page, iso) => page.locator(`.qc-day[data-day="${iso}"]`);
 
+const isoOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+// Fri..Mon of the first weekend in next month whose Friday is also in next month.
+function nextMonthWeekend() {
+    const now = new Date();
+    const sat = new Date(now.getFullYear(), now.getMonth() + 1, 2);
+    while (sat.getDay() !== 6) sat.setDate(sat.getDate() + 1);
+    const at = n => isoOf(new Date(sat.getFullYear(), sat.getMonth(), sat.getDate() + n));
+    return { fri: at(-1), sat: at(0), sun: at(1), mon: at(2) };
+}
+
 async function createCalendar(page, title = 'Ski trip', name = 'Sam') {
     await page.goto('/');
     await page.evaluate(() => localStorage.clear());
@@ -69,9 +80,49 @@ test.describe('Quick Cal', () => {
         await page.reload();
         await page.click('[data-action=next]');
         await expect(day(page, d2)).toHaveClass(/mine-maybe/);
-        // Free before and after the maybe stretch, then the stretch itself.
-        await expect(page.locator('#qcBest li')).toHaveCount(3);
-        await expect(page.locator('#qcBest li').nth(2)).toContainText('1 maybe');
+    });
+
+    test('dates that work: weekends, length, and maybes', async ({ page }) => {
+        await createCalendar(page);
+        const w = nextMonthWeekend();
+        const range = (a, b) => page.locator(`#qcBest [data-goto-range="${a}|${b}"]`);
+        await page.click('[data-action=next]');
+
+        // Default is weekends, Sat–Sun, widened to a free Fri and Mon.
+        await expect(range(w.fri, w.mon)).toHaveText(/./);
+
+        await page.click('[data-paint=maybe]');
+        await day(page, w.fri).click();
+        await expect(range(w.sat, w.mon)).toBeVisible();
+        await expect(range(w.sat, w.mon).locator('..')).toContainText('3 days');
+
+        await page.check('#findMaybe');
+        await expect(range(w.fri, w.mon).locator('..')).toContainText('4 days · 1 maybe day');
+        await range(w.fri, w.mon).click();
+        await expect(page.locator('.qc-day.highlight')).toHaveCount(4);
+
+        // Fri–Mon only: needs the maybe Friday.
+        await page.selectOption('#findLen', '4');
+        await expect(range(w.fri, w.mon)).toBeVisible();
+        await page.uncheck('#findMaybe');
+        await expect(page.locator(`#qcBest [data-goto-range^="${w.sat}"], #qcBest [data-goto-range^="${w.fri}"]`)).toHaveCount(0);
+
+        // A busy Saturday knocks the weekend out entirely.
+        await page.check('#findMaybe');
+        await page.click('[data-paint=busy]');
+        await day(page, w.sat).click();
+        await expect(page.locator(`#qcBest [data-goto-range*="${w.sat}"], #qcBest [data-goto-range^="${w.fri}"]`)).toHaveCount(0);
+
+        // Any days: the run of free days now stops at the (maybe) Friday.
+        await page.click('[data-find-mode=any]');
+        await page.selectOption('#findLen', '3');
+        await expect(page.locator(`#qcBest [data-goto-range$="|${w.fri}"]`)).toHaveCount(1);
+
+        // Settings are remembered on this device.
+        await page.reload();
+        await expect(page.locator('[data-find-mode=any]')).toHaveAttribute('aria-checked', 'true');
+        await expect(page.locator('#findLen')).toHaveValue('3');
+        await expect(page.locator('#findMaybe')).toBeChecked();
     });
 
     test('keyboard can mark a day', async ({ page }) => {
@@ -97,7 +148,7 @@ test.describe('Quick Cal', () => {
         await becomeStranger(page);
         // Viewers can look but not paint.
         await expect(page.locator('#joinForm')).toBeVisible();
-        await expect(page.locator('.qc-paint')).toHaveCount(0);
+        await expect(page.locator('#qcToolbar .qc-paint')).toHaveCount(0);
         await page.click('[data-action=next]');
         await day(page, d1).click();
         await expect(day(page, d1)).not.toHaveClass(/mine-/);
@@ -110,6 +161,7 @@ test.describe('Quick Cal', () => {
         await expect(page.locator('#qcAdmin')).toBeEmpty();
 
         await expect(page.locator('.qc-members')).toContainText('nothing blocked yet');
+        await expect(page.locator('.qc-note')).toContainText('Alex hasn\'t blocked any days yet');
         // Alex hasn't blocked anything, so they count as free on Sam's busy day.
         await expect(day(page, d1).locator('.qc-count')).toHaveText('1/2');
         await day(page, d1).click();
