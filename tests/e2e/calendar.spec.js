@@ -133,6 +133,20 @@ test.describe('Quick Cal', () => {
         await expect(page.locator('#findLen')).toHaveValue('4');
     });
 
+    test('past days are crossed out, not shaded or markable', async ({ page }) => {
+        await createCalendar(page);
+        const now = new Date();
+        const yesterday = isoOf(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+        if (yesterday.slice(0, 7) !== isoOf(now).slice(0, 7)) await page.click('[data-action=prev]');
+        const cell = day(page, yesterday);
+        await expect(cell).toHaveClass(/past/);
+        await expect(cell).not.toHaveAttribute('style', /.+/);
+        await expect(cell.locator('.qc-count')).toHaveCount(0);
+        await cell.click();
+        await expect(cell).not.toHaveClass(/mine-busy/);
+        await expect(page.locator('#qcDetail [data-set-day]')).toHaveCount(0);
+    });
+
     test('keyboard can mark a day', async ({ page }) => {
         await createCalendar(page);
         const [d1] = nextMonthDays();

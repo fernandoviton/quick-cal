@@ -418,10 +418,11 @@ var App = (function() {
                         '<div id="qcToolbar"></div>' +
                         '<div id="qcGrid"></div>' +
                         '<div class="qc-legend">' +
-                            '<span><i class="qc-swatch" style="background:#2e7d32"></i>Everyone free</span>' +
-                            '<span><i class="qc-swatch" style="background:#a5d6a7"></i>Some free</span>' +
-                            '<span><i class="qc-swatch" style="background:#fff"></i>Nobody free</span>' +
+                            '<span><i class="qc-swatch" style="background:' + heatColor(1) + '"></i>Everyone free</span>' +
+                            '<span><i class="qc-swatch" style="background:' + heatColor(0.7) + '"></i>Some free</span>' +
+                            '<span><i class="qc-swatch" style="background:' + heatColor(0) + '"></i>Nobody free</span>' +
                             '<span><i class="qc-swatch qc-swatch-busy"></i>You\'re busy</span>' +
+                            '<span><i class="qc-swatch qc-swatch-past"></i>Past</span>' +
                         '</div>' +
                     '</div>' +
                     '<aside class="qc-side">' +
@@ -513,11 +514,12 @@ var App = (function() {
         return null;
     }
 
-    // White → green by share of people free. Squared so
-    // "everyone free" stands out clearly from "almost everyone".
+    // White → dark blue by share of people free. Squared so "everyone free"
+    // stands out clearly from "almost everyone". It's a lightness ramp, so
+    // it reads without colour vision too.
     function heatColor(score) {
         var from = [255, 255, 255];
-        var to = [46, 125, 50];
+        var to = [8, 81, 156];
         var t = score * score;
         var rgb = from.map(function(f, i) { return Math.round(f + (to[i] - f) * t); });
         return 'rgb(' + rgb.join(',') + ')';
@@ -536,21 +538,23 @@ var App = (function() {
                 var s = state.stats[cell.iso] || { busy: [] };
                 var free = n - s.busy.length;
                 var score = n ? free / n : 0;
-                var mine = myStatus(cell.iso);
+                var past = cell.iso < today;
+                var mine = past ? null : myStatus(cell.iso);
                 var classes = ['qc-day'];
                 if (!cell.inMonth) classes.push('out');
-                if (cell.iso < today) classes.push('past');
+                if (past) classes.push('past');
                 if (cell.iso === today) classes.push('today');
                 if (cell.iso === state.selected) classes.push('selected');
                 if (state.highlight && cell.iso >= state.highlight.start && cell.iso <= state.highlight.end) classes.push('highlight');
                 if (mine) classes.push('mine-' + mine);
-                if (score * score > 0.55) classes.push('dark');
-                var aria = formatDay(cell.iso, true) + ': ' + free + ' of ' + n + ' free' +
-                    (mine ? ', you: busy' : '');
+                if (!past && score * score > 0.55) classes.push('dark');
+                var aria = formatDay(cell.iso, true) + (past ? ': past' : ': ' + free + ' of ' + n + ' free' +
+                    (mine ? ', you: busy' : ''));
+                // Past days are crossed out (CSS) instead of shaded.
                 html += '<button class="' + classes.join(' ') + '" data-day="' + cell.iso + '" role="gridcell" ' +
-                    'style="background:' + heatColor(score) + '" aria-label="' + escapeHtml(aria) + '">' +
+                    (past ? '' : 'style="background-color:' + heatColor(score) + '" ') + 'aria-label="' + escapeHtml(aria) + '">' +
                     '<span class="qc-num">' + CalUtil.parseIso(cell.iso).getDate() + '</span>' +
-                    (free < n ? '<span class="qc-count" aria-hidden="true">' + free + '/' + n + '</span>' : '') +
+                    (!past && free < n ? '<span class="qc-count" aria-hidden="true">' + free + '/' + n + '</span>' : '') +
                 '</button>';
             });
         });
