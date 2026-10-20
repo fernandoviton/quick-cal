@@ -147,6 +147,22 @@ test.describe('Quick Cal', () => {
         await expect(page.locator('#qcDetail [data-set-day]')).toHaveCount(0);
     });
 
+    test('can only page back one month', async ({ page }) => {
+        await createCalendar(page);
+        const prev = page.locator('[data-action=prev]');
+        const label = page.locator('.qc-month-label');
+        const thisMonth = await label.textContent();
+        await page.click('[data-action=next]');
+        await prev.click();
+        await expect(label).toHaveText(thisMonth);
+        await prev.click();
+        await expect(prev).toBeDisabled();
+        const lastMonth = await label.textContent();
+        expect(lastMonth).not.toBe(thisMonth);
+        await prev.click({ force: true });
+        await expect(label).toHaveText(lastMonth);
+    });
+
     test('keyboard can mark a day', async ({ page }) => {
         await createCalendar(page);
         const [d1] = nextMonthDays();

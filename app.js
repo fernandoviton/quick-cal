@@ -5,6 +5,7 @@
 var App = (function() {
     var STORE_KEY = 'quickcal_identities';
     var POLL_MS = 15000;
+    var MAX_MONTHS_BACK = 1; // how far before the current month you can page
     var FIND_HORIZON_DAYS = 180;
     var FIND_LIMIT = 8;
     var FIND_DEFAULTS = { weekdays: [6, 0], length: 4 };
@@ -482,12 +483,22 @@ var App = (function() {
         document.getElementById('qcTop').innerHTML = html + '</div>';
     }
 
+    // Months since the year 0, for comparing { y, m } values.
+    function monthIndex(month) {
+        return month.y * 12 + month.m;
+    }
+
+    function atEarliestMonth() {
+        var now = new Date();
+        return monthIndex(state.month) <= now.getFullYear() * 12 + now.getMonth() - MAX_MONTHS_BACK;
+    }
+
     function renderToolbar() {
         var first = new Date(state.month.y, state.month.m, 1);
         var label = first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
         var html = '<div class="qc-toolbar">' +
             '<div class="qc-monthnav">' +
-                '<button class="qc-icon-btn" data-action="prev" aria-label="Previous month">&#8249;</button>' +
+                '<button class="qc-icon-btn" data-action="prev" aria-label="Previous month"' + (atEarliestMonth() ? ' disabled' : '') + '>&#8249;</button>' +
                 '<span class="qc-month-label" aria-live="polite">' + escapeHtml(label) + '</span>' +
                 '<button class="qc-icon-btn" data-action="next" aria-label="Next month">&#8250;</button>' +
                 '<button class="qc-link-btn" data-action="today">Today</button>' +
@@ -875,6 +886,7 @@ var App = (function() {
         switch (t.dataset.action) {
             case 'prev':
             case 'next':
+                if (t.dataset.action === 'prev' && atEarliestMonth()) return;
                 var d = new Date(state.month.y, state.month.m + (t.dataset.action === 'next' ? 1 : -1), 1);
                 state.month = { y: d.getFullYear(), m: d.getMonth() };
                 renderToolbar();
