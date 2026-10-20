@@ -73,45 +73,50 @@ describe('stats', () => {
     });
 });
 
-// October 2026: Fri 23, Sat 24, Sun 25, Mon 26 ... Fri 30, Sat 31, Sun Nov 1, Mon 2.
+test('minSpan is the shortest run that covers the weekdays', () => {
+    expect(CalUtil.minSpan([])).toBe(0);
+    expect(CalUtil.minSpan([6, 0])).toBe(2);    // Sat, Sun
+    expect(CalUtil.minSpan([5, 1])).toBe(4);    // Fri .. Mon
+    expect(CalUtil.minSpan([1, 3, 5])).toBe(5); // Mon .. Fri
+});
+
+// October 2026: Thu 22, Fri 23, Sat 24, Sun 25, Mon 26, Tue 27 ... Sat 31, Sun Nov 1.
 describe('findDates', () => {
     const marks = CalUtil.dayStats([
-        { member_id: 'a', day: '2026-10-23', status: 'maybe' }, // Fri
         { member_id: 'b', day: '2026-10-27', status: 'busy' },  // Tue
-        { member_id: 'a', day: '2026-10-30', status: 'busy' },  // Fri
+        { member_id: 'a', day: '2026-10-29', status: 'maybe' }, // Thu
         { member_id: 'b', day: '2026-11-07', status: 'busy' }   // Sat
     ]);
-    const find = opts => CalUtil.findDates(marks, 2, '2026-10-22', 21, opts)
-        .map(r => `${r.start}..${r.end}/${r.maybeDays}`);
+    // Stretches may start up to Nov 4 (14 days).
+    const find = (weekdays, length) => CalUtil.findDates(marks, 2, '2026-10-22', 14, { weekdays, length })
+        .map(r => `${r.start}..${r.end}`);
 
-    test('weekends widen to a free Friday and Monday', () => {
-        expect(find({ mode: 'weekend', minDays: 2 })).toEqual([
-            '2026-10-24..2026-10-26/0', // Fri is a maybe
-            '2026-10-31..2026-11-02/0'  // Fri busy; the Nov 7 weekend is blocked
-        ]);
-        expect(find({ mode: 'weekend', minDays: 2, allowMaybe: true })[0]).toBe('2026-10-23..2026-10-26/1');
+    test('merges the stretches around each weekend into one result', () => {
+        // Oct 24/25: Thu–Sun and Fri–Mon (Tue is busy). Oct 31/Nov 1: Fri–Mon
+        // and Sat–Tue (Thu is a maybe).
+        expect(find([6, 0], 4)).toEqual(['2026-10-22..2026-10-26', '2026-10-30..2026-11-03']);
+        expect(CalUtil.findDates(marks, 2, '2026-10-22', 14, { weekdays: [6, 0], length: 4 })[0].days).toBe(5);
     });
 
-    test('weekends shorter than minDays are dropped', () => {
-        expect(find({ mode: 'weekend', minDays: 4, allowMaybe: true })).toEqual(['2026-10-23..2026-10-26/1']);
-        expect(find({ mode: 'weekend', minDays: 4 })).toEqual([]);
+    test('a long stretch must fit between blocked days', () => {
+        expect(find([6, 0], 5)).toEqual(['2026-10-22..2026-10-26', '2026-10-30..2026-11-04']);
+        expect(find([6, 0], 6)).toEqual(['2026-10-30..2026-11-05']);
+        expect(find([6, 0], 8)).toEqual(['2026-10-30..2026-11-06']); // Sat Nov 7 is busy
+        expect(find([6, 0], 9)).toEqual([]);
     });
 
-    test('any mode returns runs of at least minDays', () => {
-        expect(find({ mode: 'any', minDays: 1 })).toEqual([
-            '2026-10-22..2026-10-22/0',
-            '2026-10-24..2026-10-26/0',
-            '2026-10-28..2026-10-29/0',
-            '2026-10-31..2026-11-06/0',
-            '2026-11-08..2026-11-11/0' // cut off at the horizon
-        ]);
-        expect(find({ mode: 'any', minDays: 4 })).toEqual(['2026-10-31..2026-11-06/0', '2026-11-08..2026-11-11/0']);
-        expect(find({ mode: 'any', minDays: 3, allowMaybe: true })[0]).toBe('2026-10-22..2026-10-26/1');
+    test('other required days', () => {
+        expect(find([5, 1], 4)).toEqual(['2026-10-23..2026-10-26', '2026-10-30..2026-11-02']); // Fri–Mon only
+        expect(find([5, 1], 3)).toEqual([]); // can't fit
+    });
+
+    test('no required days gives free runs of at least the length', () => {
+        expect(find([], 3)).toEqual(['2026-10-22..2026-10-26', '2026-10-30..2026-11-06']);
     });
 
     test('never starts before fromIso, and needs people', () => {
-        // From a Sunday, that weekend's Saturday is already past, so the first result is the next Friday.
-        expect(CalUtil.findDates({}, 1, '2026-10-25', 7, { mode: 'weekend', minDays: 2 }).map(r => r.start)).toEqual(['2026-10-30']);
-        expect(CalUtil.findDates({}, 0, '2026-10-22', 30, { mode: 'any', minDays: 1 })).toEqual([]);
+        // From a Sunday: that weekend's Saturday is in the past.
+        expect(CalUtil.findDates({}, 1, '2026-10-25', 7, { weekdays: [6, 0], length: 2 }).map(r => r.start)).toEqual(['2026-10-31']);
+        expect(CalUtil.findDates({}, 0, '2026-10-22', 30, { weekdays: [], length: 1 })).toEqual([]);
     });
 });

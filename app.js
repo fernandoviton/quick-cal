@@ -8,8 +8,8 @@ var App = (function() {
     var STATUS_LABEL = { busy: 'Busy', maybe: 'Maybe' };
     var FIND_HORIZON_DAYS = 180;
     var FIND_LIMIT = 8;
-    var FIND_DEFAULTS = { mode: 'weekend', minDays: 2, allowMaybe: false };
-    var WEEKEND_LENGTHS = [[2, 'Sat–Sun'], [3, 'Long weekend (3 days)'], [4, 'Fri–Mon']];
+    var FIND_DEFAULTS = { weekdays: [6, 0], length: 4 };
+    var WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
     var headerEl = null;
     var container = null;
@@ -305,7 +305,7 @@ var App = (function() {
             token: token, data: null, version: null, stats: {}, me: null, isAdmin: false,
             month: { y: now.getFullYear(), m: now.getMonth() },
             selected: todayIso(), paint: 'busy', drag: null, highlight: null,
-            find: Object.assign({}, FIND_DEFAULTS, getEntry(token).find),
+            find: loadFind(token),
             pending: 0, queue: Promise.resolve()
         };
         var s = state;
@@ -601,36 +601,38 @@ var App = (function() {
         el.innerHTML = html;
     }
 
+    function loadFind(token) {
+        var saved = getEntry(token).find || {};
+        return {
+            weekdays: Array.isArray(saved.weekdays) ? saved.weekdays : FIND_DEFAULTS.weekdays.slice(),
+            length: saved.length || FIND_DEFAULTS.length
+        };
+    }
+
     // The search settings (static, so polling doesn't reset the inputs).
     function renderFind() {
         var f = state.find;
-        var lengths = f.mode === 'weekend' ? WEEKEND_LENGTHS : [];
-        if (f.mode !== 'weekend') {
-            for (var i = 1; i <= 14; i++) lengths.push([i, i === 1 ? 'Any single day' : 'At least ' + i + ' days in a row']);
-        }
         var html = '<div class="qc-find">' +
-            '<div class="qc-paint" role="radiogroup" aria-label="Looking for">';
-        [['weekend', 'Weekends'], ['any', 'Any days']].forEach(function(m) {
-            var on = f.mode === m[0];
-            html += '<button class="qc-paint-btn clear' + (on ? ' active' : '') + '" role="radio" aria-checked="' + on + '" data-find-mode="' + m[0] + '">' + m[1] + '</button>';
+            '<div class="qc-find-row"><span class="qc-find-label">Must include</span>' +
+                '<div class="qc-weekdays" role="group" aria-label="Days that must be included">';
+        WEEKDAYS.forEach(function(name, w) {
+            html += '<label class="qc-wd"><input type="checkbox" data-weekday="' + w + '"' +
+                (f.weekdays.indexOf(w) >= 0 ? ' checked' : '') + '><span>' + name + '</span></label>';
         });
-        html += '</div>' +
-            '<select class="input" id="findLen" aria-label="Length">' +
-                lengths.map(function(l) {
-                    return '<option value="' + l[0] + '"' + (l[0] === f.minDays ? ' selected' : '') + '>' + escapeHtml(l[1]) + '</option>';
-                }).join('') +
-            '</select>' +
-            '<label class="qc-check"><input type="checkbox" id="findMaybe"' + (f.allowMaybe ? ' checked' : '') + '> Count "maybe" as free</label>' +
-        '</div>';
+        html += '</div></div>' +
+            '<label class="qc-find-row"><span class="qc-find-label">Days in a row</span>' +
+                '<select class="input" id="findLen">';
+        for (var i = 1; i <= 14; i++) {
+            html += '<option value="' + i + '"' + (i === f.length ? ' selected' : '') + '>' + i + '</option>';
+        }
+        html += '</select></label></div>';
         document.getElementById('qcFind').innerHTML = html;
     }
 
     function setFind(changes) {
         Object.assign(state.find, changes);
-        if (state.find.mode === 'weekend') state.find.minDays = Math.min(4, Math.max(2, state.find.minDays));
         updateEntry(state.token, { find: state.find });
         state.highlight = null;
-        renderFind();
         renderBest();
         renderGrid();
     }
@@ -646,8 +648,9 @@ var App = (function() {
         if (!members.length) {
             html += '<p class="qc-muted">Nobody has joined yet.</p>';
         } else if (!results.length) {
-            html += '<p class="qc-muted">No dates where everyone\'s free in the next 6 months. Try a shorter length' +
-                (state.find.allowMaybe ? '' : ' or counting "maybe" as free') + '.</p>';
+            html += '<p class="qc-muted">' + (CalUtil.minSpan(state.find.weekdays) > state.find.length
+                ? state.find.length + (state.find.length === 1 ? ' day' : ' days in a row') + ' can\'t include all the checked days.'
+                : 'No ' + state.find.length + '-day stretches where everyone\'s free in the next 6 months.') + '</p>';
         } else {
             html += '<ol class="qc-best">';
             results.slice(0, FIND_LIMIT).forEach(function(r) {
@@ -655,7 +658,7 @@ var App = (function() {
                 html += '<li><button class="qc-link-btn' + (on ? ' active' : '') + '" data-goto-range="' + r.start + '|' + r.end + '">' +
                         escapeHtml(formatRange(r.start, r.end)) + '</button>' +
                     '<span class="qc-muted">' + r.days + (r.days === 1 ? ' day' : ' days') +
-                        (r.maybeDays ? ' · ' + r.maybeDays + (r.maybeDays === 1 ? ' maybe day' : ' maybe days') : '') + '</span></li>';
+                        (r.days > state.find.length ? ' free' : '') + '</span></li>';
             });
             html += '</ol>';
             if (results.length > FIND_LIMIT) {
@@ -817,8 +820,15 @@ var App = (function() {
 
     function onChange(e) {
         if (!state || !state.data) return;
-        if (e.target.id === 'findLen') setFind({ minDays: parseInt(e.target.value, 10) });
-        if (e.target.id === 'findMaybe') setFind({ allowMaybe: e.target.checked });
+        if (e.target.id === 'findLen') setFind({ length: parseInt(e.target.value, 10) });
+        if (e.target.dataset.weekday) {
+            var boxes = document.querySelectorAll('[data-weekday]');
+            var weekdays = [];
+            for (var i = 0; i < boxes.length; i++) {
+                if (boxes[i].checked) weekdays.push(parseInt(boxes[i].dataset.weekday, 10));
+            }
+            setFind({ weekdays: weekdays });
+        }
     }
 
     function onSubmit(e) {
@@ -862,7 +872,6 @@ var App = (function() {
             renderBest();
             return;
         }
-        if (t.dataset.findMode) return setFind({ mode: t.dataset.findMode });
         if (t.dataset.remove) return removeMember(t.dataset.remove);
 
         switch (t.dataset.action) {

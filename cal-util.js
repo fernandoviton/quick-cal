@@ -105,55 +105,64 @@ var CalUtil = (function() {
         return stats;
     }
 
-    // Dates in the `horizon` days from fromIso when all `n` people are free.
-    // opts.allowMaybe: a "maybe" doesn't block the day.
-    // opts.mode 'weekend': one result per weekend whose Sat and Sun are both
-    //   free, widened to the free Fri and/or Mon, and kept if it's at least
-    //   opts.minDays long (2 = Sat–Sun, 3 = long weekend, 4 = Fri–Mon).
-    // opts.mode 'any': every run of free days at least opts.minDays long.
-    // Returns [{ start, end, days, maybeDays }] in date order.
+    // Smallest number of consecutive days that can include every weekday in
+    // `weekdays` (0 = Sun .. 6 = Sat). 0 when none are required.
+    function minSpan(weekdays) {
+        if (!weekdays.length) return 0;
+        var best = 7;
+        weekdays.forEach(function(start) {
+            var span = 0;
+            weekdays.forEach(function(w) { span = Math.max(span, (w - start + 7) % 7 + 1); });
+            best = Math.min(best, span);
+        });
+        return best;
+    }
+
+    // Stretches of `opts.length` consecutive days, within the `horizon` days
+    // from fromIso, when all `n` people are free (no busy or maybe marks) and
+    // that include every weekday in `opts.weekdays`.
+    // Overlapping stretches around the same occurrence of the required days
+    // (e.g. Thu–Sun, Fri–Mon and Sat–Tue for one weekend) are merged into a
+    // single result. With no required days, overlapping stretches merge into
+    // one free run.
+    // Returns [{ start, end, days }] in date order.
     function findDates(stats, n, fromIso, horizon, opts) {
-        if (!n) return [];
-        var minDays = Math.max(1, opts.minDays || 1);
-        var lastIso = addDays(fromIso, horizon - 1);
+        var length = Math.max(1, opts.length || 1);
+        var weekdays = opts.weekdays || [];
+        if (!n || length < minSpan(weekdays)) return [];
+        var lastStart = addDays(fromIso, horizon - 1);
         function free(day) {
-            if (day < fromIso) return false;
             var s = stats[day];
-            return !s || (!s.busy.length && (opts.allowMaybe || !s.maybe.length));
-        }
-        function result(start, end) {
-            var days = daysBetween(start, end);
-            var maybeDays = days.filter(function(d) { return stats[d] && stats[d].maybe.length; }).length;
-            return { start: start, end: end, days: days.length, maybeDays: maybeDays };
+            return !s || (!s.busy.length && !s.maybe.length);
         }
 
-        var results = [];
-        var day;
-        if (opts.mode === 'weekend') {
-            day = fromIso;
-            while (parseIso(day).getDay() !== 6) day = addDays(day, 1);
-            for (; day <= lastIso; day = addDays(day, 7)) {
-                var sun = addDays(day, 1);
-                if (!free(day) || !free(sun)) continue;
-                var fri = addDays(day, -1);
-                var mon = addDays(day, 2);
-                var r = result(free(fri) ? fri : day, free(mon) ? mon : sun);
-                if (r.days >= minDays) results.push(r);
-            }
-            return results;
-        }
-
-        var start = null;
-        for (day = fromIso; day <= addDays(lastIso, 1); day = addDays(day, 1)) {
-            if (day <= lastIso && free(day)) {
-                if (!start) start = day;
-            } else if (start) {
-                var run = result(start, addDays(day, -1));
-                if (run.days >= minDays) results.push(run);
-                start = null;
+        var groups = [];
+        var byAnchor = {};
+        for (var start = fromIso; start <= lastStart; start = addDays(start, 1)) {
+            var window = daysBetween(start, addDays(start, length - 1));
+            if (!window.every(free)) continue;
+            var seen = window.map(function(d) { return parseIso(d).getDay(); });
+            if (!weekdays.every(function(w) { return seen.indexOf(w) >= 0; })) continue;
+            var end = window[window.length - 1];
+            var last = groups[groups.length - 1];
+            if (weekdays.length) {
+                // Group by the first required day in the stretch.
+                var anchor = window.filter(function(d) { return weekdays.indexOf(parseIso(d).getDay()) >= 0; })[0];
+                if (byAnchor[anchor]) {
+                    byAnchor[anchor].end = end;
+                } else {
+                    byAnchor[anchor] = { start: start, end: end };
+                    groups.push(byAnchor[anchor]);
+                }
+            } else if (last && start <= last.end) {
+                last.end = end;
+            } else {
+                groups.push({ start: start, end: end });
             }
         }
-        return results;
+        return groups.map(function(g) {
+            return { start: g.start, end: g.end, days: daysBetween(g.start, g.end).length };
+        });
     }
 
     return {
@@ -167,6 +176,7 @@ var CalUtil = (function() {
         daysBetween: daysBetween,
         monthGrid: monthGrid,
         dayStats: dayStats,
+        minSpan: minSpan,
         findDates: findDates
     };
 })();

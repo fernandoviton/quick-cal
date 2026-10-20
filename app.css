@@ -489,24 +489,69 @@ body {
 
 .qc-find {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
+    flex-direction: column;
     gap: 10px;
     margin-bottom: 14px;
 }
 
+.qc-find-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+}
+
+.qc-find-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    min-width: 6.5em;
+}
+
 .qc-find select {
     width: auto;
-    padding: 7px 10px;
+    padding: 6px 10px;
     font-size: 0.9rem;
 }
 
-.qc-check {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.9rem;
+.qc-weekdays {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+/* Weekday checkboxes styled as toggle chips. */
+.qc-wd {
+    position: relative;
+}
+
+.qc-wd input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.qc-wd span {
+    display: inline-block;
+    min-width: 2.4em;
+    padding: 5px 4px;
+    border: 1px solid var(--qc-border);
+    border-radius: 6px;
+    background: white;
+    font-size: 0.8rem;
+    text-align: center;
     cursor: pointer;
+    user-select: none;
+}
+
+.qc-wd input:checked + span {
+    background: var(--qc-green);
+    border-color: var(--qc-green);
+    color: white;
+}
+
+.qc-wd input:focus-visible + span {
+    outline: 2px solid #1976d2;
+    outline-offset: 1px;
 }
 
 .qc-best .qc-link-btn.active {

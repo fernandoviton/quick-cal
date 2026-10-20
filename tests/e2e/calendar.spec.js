@@ -13,13 +13,13 @@ const day = (page, iso) => page.locator(`.qc-day[data-day="${iso}"]`);
 
 const isoOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-// Fri..Mon of the first weekend in next month whose Friday is also in next month.
+// Thu..Tue around the first weekend in next month that has its Thursday in next month too.
 function nextMonthWeekend() {
     const now = new Date();
-    const sat = new Date(now.getFullYear(), now.getMonth() + 1, 2);
+    const sat = new Date(now.getFullYear(), now.getMonth() + 1, 4);
     while (sat.getDay() !== 6) sat.setDate(sat.getDate() + 1);
     const at = n => isoOf(new Date(sat.getFullYear(), sat.getMonth(), sat.getDate() + n));
-    return { fri: at(-1), sat: at(0), sun: at(1), mon: at(2) };
+    return { thu: at(-2), fri: at(-1), sat: at(0), sun: at(1), mon: at(2), tue: at(3) };
 }
 
 async function createCalendar(page, title = 'Ski trip', name = 'Sam') {
@@ -82,47 +82,43 @@ test.describe('Quick Cal', () => {
         await expect(day(page, d2)).toHaveClass(/mine-maybe/);
     });
 
-    test('dates that work: weekends, length, and maybes', async ({ page }) => {
+    test('dates that work: required weekdays and days in a row', async ({ page }) => {
         await createCalendar(page);
         const w = nextMonthWeekend();
         const range = (a, b) => page.locator(`#qcBest [data-goto-range="${a}|${b}"]`);
+        const weekday = name => page.locator('.qc-wd', { hasText: name });
         await page.click('[data-action=next]');
 
-        // Default is weekends, Sat–Sun, widened to a free Fri and Mon.
-        await expect(range(w.fri, w.mon)).toHaveText(/./);
+        // Defaults: Sat + Sun, 4 days in a row. Thu–Sun, Fri–Mon and Sat–Tue
+        // all fit, so they show as one Thu–Tue result.
+        await expect(page.locator('.qc-wd input:checked')).toHaveCount(2);
+        await expect(page.locator('#findLen')).toHaveValue('4');
+        await expect(range(w.thu, w.tue).locator('..')).toContainText('6 days free');
 
-        await page.click('[data-paint=maybe]');
-        await day(page, w.fri).click();
-        await expect(range(w.sat, w.mon)).toBeVisible();
-        await expect(range(w.sat, w.mon).locator('..')).toContainText('3 days');
-
-        await page.check('#findMaybe');
-        await expect(range(w.fri, w.mon).locator('..')).toContainText('4 days · 1 maybe day');
+        // Busy Thursday and Tuesday leave exactly Fri–Mon.
+        await day(page, w.thu).click();
+        await day(page, w.tue).click();
+        await expect(range(w.fri, w.mon).locator('..')).toContainText('4 days');
         await range(w.fri, w.mon).click();
         await expect(page.locator('.qc-day.highlight')).toHaveCount(4);
 
-        // Fri–Mon only: needs the maybe Friday.
-        await page.selectOption('#findLen', '4');
+        // Require Fri and Mon too: Fri–Mon still fits in 4 days, not in 3.
+        await weekday('Fri').click();
+        await weekday('Mon').click();
         await expect(range(w.fri, w.mon)).toBeVisible();
-        await page.uncheck('#findMaybe');
-        await expect(page.locator(`#qcBest [data-goto-range^="${w.sat}"], #qcBest [data-goto-range^="${w.fri}"]`)).toHaveCount(0);
-
-        // A busy Saturday knocks the weekend out entirely.
-        await page.check('#findMaybe');
-        await page.click('[data-paint=busy]');
-        await day(page, w.sat).click();
-        await expect(page.locator(`#qcBest [data-goto-range*="${w.sat}"], #qcBest [data-goto-range^="${w.fri}"]`)).toHaveCount(0);
-
-        // Any days: the run of free days now stops at the (maybe) Friday.
-        await page.click('[data-find-mode=any]');
         await page.selectOption('#findLen', '3');
-        await expect(page.locator(`#qcBest [data-goto-range$="|${w.fri}"]`)).toHaveCount(1);
+        await expect(page.locator('#qcBest')).toContainText('can\'t include all the checked days');
+
+        // A maybe on Monday blocks the weekend too.
+        await page.selectOption('#findLen', '4');
+        await page.click('[data-paint=maybe]');
+        await day(page, w.mon).click();
+        await expect(page.locator(`#qcBest [data-goto-range*="${w.fri}"]`)).toHaveCount(0);
 
         // Settings are remembered on this device.
         await page.reload();
-        await expect(page.locator('[data-find-mode=any]')).toHaveAttribute('aria-checked', 'true');
-        await expect(page.locator('#findLen')).toHaveValue('3');
-        await expect(page.locator('#findMaybe')).toBeChecked();
+        await expect(page.locator('.qc-wd input:checked')).toHaveCount(4);
+        await expect(page.locator('#findLen')).toHaveValue('4');
     });
 
     test('keyboard can mark a day', async ({ page }) => {

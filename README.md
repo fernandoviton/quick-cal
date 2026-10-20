@@ -5,11 +5,10 @@ link around, and everyone taps or drags across the days they **can't** make (bus
 or "maybe"). Every unmarked day counts as free. The calendar shades days by how many
 people are free.
 
-**Dates that work** lists the stretches when *everyone* is free over the next 6 months:
-- **Weekends:** Sat–Sun, a long weekend (3 days), or Fri–Mon. Each weekend is widened to a free Friday or Monday.
-- **Any days:** runs of at least N days in a row.
-- **Count "maybe" as free:** off by default.
-
+**Dates that work** lists the stretches when *everyone* is free (no busy or maybe marks) over the next 6 months.
+You choose the weekdays a stretch must include (Sat and Sun by default) and how many days in a row it needs (4 by
+default). Stretches around the same weekend are merged into one result. For example, Thu–Sun, Fri–Mon and Sat–Tue
+all being free shows as "Thu – Tue · 6 days free".
 These settings are remembered per calendar, on each device.
 
 There are no accounts. Built on [listlet-shared](https://github.com/fernandoviton/listlet-shared):
