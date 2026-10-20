@@ -126,6 +126,20 @@ body {
     font-size: 0.85rem;
 }
 
+.qc-join-privacy {
+    margin-top: 10px;
+    font-size: 0.9rem;
+}
+
+.qc-join-privacy summary {
+    cursor: pointer;
+    color: #1565c0;
+}
+
+.qc-join-privacy ul {
+    margin-top: 8px;
+}
+
 .qc-privacy ul {
     margin: 0;
     padding-left: 20px;

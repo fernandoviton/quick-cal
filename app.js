@@ -218,6 +218,16 @@ var App = (function() {
     // Home
     // ---------------------------------------------------------------------
 
+    // Shared by the home page and the join form.
+    function privacyList() {
+        return '<ul>' +
+            '<li>There are no accounts. Anyone with a calendar\'s link can see it, so only share it with the people you\'re planning with.</li>' +
+            '<li>People only show up under the name they type. Nicknames are fine.</li>' +
+            '<li>Only you can change your dates. This device keeps a secret key for you. To edit from another device, use <em>Copy my personal link</em>.</li>' +
+            '<li>Links are random and can\'t be guessed. The secret part after <code>#</code> is never sent to the web host or in referrer headers.</li>' +
+        '</ul>';
+    }
+
     function renderHome() {
         renderHeader((typeof CONFIG !== 'undefined' && CONFIG.APP_TITLE) || 'Quick Cal');
         var store = loadStore();
@@ -257,12 +267,7 @@ var App = (function() {
                 recent +
                 '<section class="qc-card qc-privacy">' +
                     '<h2>How private is this?</h2>' +
-                    '<ul>' +
-                        '<li>There are no accounts. Anyone with a calendar\'s link can see it, so only share it with the people you\'re planning with.</li>' +
-                        '<li>People only show up under the name they type. Nicknames are fine.</li>' +
-                        '<li>Only you can change your dates. This device keeps a secret key for you. To edit from another device, use <em>Copy my personal link</em>.</li>' +
-                        '<li>Links are random and can\'t be guessed. The secret part after <code>#</code> is never sent to the web host or in referrer headers.</li>' +
-                    '</ul>' +
+                    privacyList() +
                 '</section>' +
             '</div>';
     }
@@ -469,6 +474,10 @@ var App = (function() {
                         '<button class="btn btn-primary" type="submit">Join</button>' +
                     '</div>' +
                     '<p class="qc-muted">Already joined on another device? Open your personal link here instead.</p>' +
+                    '<details class="qc-privacy qc-join-privacy">' +
+                        '<summary>No account needed. Everyone with this link sees the name you pick and the days you block. How private is this?</summary>' +
+                        privacyList() +
+                    '</details>' +
                 '</form>';
         }
         document.getElementById('qcTop').innerHTML = html + '</div>';

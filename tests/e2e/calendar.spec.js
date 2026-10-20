@@ -149,6 +149,12 @@ test.describe('Quick Cal', () => {
         // Viewers can look but not paint.
         await expect(page.locator('#joinForm')).toBeVisible();
         await expect(page.locator('#qcToolbar .qc-paint')).toHaveCount(0);
+        // Privacy explainer is collapsed under the join form.
+        const privacy = page.locator('#joinForm .qc-join-privacy');
+        await expect(privacy.locator('summary')).toContainText('Everyone with this link sees the name you pick');
+        await expect(privacy.locator('li').first()).toBeHidden();
+        await privacy.locator('summary').click();
+        await expect(privacy.locator('li').first()).toContainText('There are no accounts');
         await page.click('[data-action=next]');
         await day(page, d1).click();
         await expect(day(page, d1)).not.toHaveClass(/mine-/);
